@@ -35,7 +35,7 @@ jobs:
               echo "Контейнер Django запущен успешно"
             else
               echo "Контейнер Django не запустился вывод логов:"
-              docker logs amo_bazon-django-1
+              docker logs amo-edna-api-1
               echo "Отмена изменений"
               
               git reset --hard $last_commit

@@ -4,8 +4,18 @@ services:
       context: ./src
       dockerfile: Dockerfile
     container_name: amo-edna-api
-    env_file:
-      - .env
+    environment:
+      - EDNA_API_KEY=a564b2c3-1d3f-43e9-bc00-22a7d9580216
+      - EDNA_BASE_URL=https://app.edna.ru
+      - EDNA_IM_TYPE=whatsapp
+      - EDNA_SEND_PATH=/api/messages/send
+
+      - AMOCRM_AMOJO_BASE_URL=https://amojo.amocrm.ru
+      - AMOCRM_CHANNEL_ID=60803015-ea1a-40cd-ba90-f7fc660eaff5
+      - AMOCRM_CHANNEL_SECRET=dcfb2233db2640b94e39d827b162cfe1b265a27e
+      - AMOCRM_ACCOUNT_ID=d1987892-f0ef-4b43-aa1e-8f1e114565dc
+      - AMOCRM_CONNECT_TITLE=Integration Channel
+      - AMOCRM_HOOK_API_VERSION=v2
     ports:
       - "28000:8000"
     volumes:

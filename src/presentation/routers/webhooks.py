@@ -49,6 +49,12 @@ class Ok(BaseModel):
 	code: str = "ok"
 
 
+@router.get("/edna", response_model=Ok)
+async def edna_webhook_validation():
+	"""Handles Edna webhook validation GET request."""
+	return Ok()
+
+
 @router.post("/edna", response_model=Ok)
 async def edna_webhook(
 	payload: Union[EdnaIncomingMessage, EdnaStatusUpdate],

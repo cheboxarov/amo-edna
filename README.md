@@ -1,45 +1,45 @@
-# Edna <> amoCRM Integration Service
+# Сервис интеграции Edna <> amoCRM
 
-This service acts as a middleware to enable two-way communication between the edna Pulse messaging platform and amoCRM Chats. It routes messages, media, and status updates between the two systems.
+Этот сервис работает как промежуточное ПО (middleware) для обеспечения двусторонней связи между платформой обмена сообщениями edna Pulse и Чатами amoCRM. Он маршрутизирует сообщения, медиафайлы и обновления статусов между двумя системами.
 
-## Features
+## Возможности
 
-- **Two-way message routing**: Messages from clients in edna are delivered to amoCRM chats, and messages from agents in amoCRM are sent to clients via edna.
-- **Media support**: Handles images and file attachments.
-- **Status synchronization**: Synchronizes message statuses (sent, delivered, read) from edna to amoCRM.
-- **Clean Architecture**: Built using principles of Clean Architecture for maintainability and testability.
-- **Containerized**: Ready to be deployed as a Docker container.
+- **Двусторонняя маршрутизация сообщений**: Сообщения от клиентов в edna доставляются в чаты amoCRM, а сообщения от операторов в amoCRM отправляются клиентам через edna.
+- **Поддержка медиафайлов**: Обрабатывает изображения и вложенные файлы.
+- **Синхронизация статусов**: Синхронизирует статусы сообщений (отправлено, доставлено, прочитано) из edna в amoCRM.
+- **Чистая архитектура**: Проект построен на принципах Чистой архитектуры для упрощения поддержки и тестирования.
+- **Контейнеризация**: Готов к развертыванию в виде Docker-контейнера.
 
-## Architecture
+## Архитектура
 
-The application follows a classic Clean Architecture structure, separating concerns into four main layers:
+Приложение следует классической структуре Чистой архитектуры, разделяя логику на четыре основных слоя:
 
-- `domain`: Contains core business logic, entities (e.g., `Message`), and interfaces (ports).
-- `use_cases`: Orchestrates the flow of data between the domain and infrastructure layers.
-- `infrastructure`: Implements external-facing components like HTTP clients and repositories.
-- `presentation`: Exposes the application to the outside world via a REST API (FastAPI), defining schemas and handling web requests.
+- `domain`: Содержит основную бизнес-логику, сущности (например, `Message`) и интерфейсы (порты).
+- `use_cases`: Оркестрирует поток данных между доменом и инфраструктурными слоями.
+- `infrastructure`: Реализует компоненты, взаимодействующие с внешним миром, такие как HTTP-клиенты и репозитории.
+- `presentation`: Предоставляет доступ к приложению извне через REST API (FastAPI), определяя схемы и обрабатывая веб-запросы.
 
-## API Endpoints
+## API Эндпоинты
 
-The service exposes the following endpoints. For detailed request/response models, refer to the auto-generated OpenAPI documentation at `/docs` when the service is running.
+Сервис предоставляет следующие эндпоинты. Для получения подробной информации о моделях запросов/ответов обратитесь к автоматически сгенерированной документации OpenAPI по адресу `/docs` во время работы сервиса.
 
-### Health Check
+### Проверка состояния
 
 - `GET /health`
-  - **Description**: Checks if the service is running and available.
-  - **Success Response (200 OK)**:
+  - **Описание**: Проверяет, запущен ли и доступен ли сервис.
+  - **Успешный ответ (200 OK)**:
     ```json
     {
       "status": "ok"
     }
     ```
 
-### Webhooks
+### Вебхуки
 
 - `POST /webhooks/edna`
-  - **Description**: Receives incoming messages and status updates from the edna Pulse platform.
-  - **Request Body**: Can be one of two types: `EdnaIncomingMessage` or `EdnaStatusUpdate`.
-  - **Success Response (200 OK)**:
+  - **Описание**: Получает входящие сообщения и обновления статусов от платформы edna Pulse.
+  - **Тело запроса**: Может быть одного из двух типов: `EdnaIncomingMessage` или `EdnaStatusUpdate`.
+  - **Успешный ответ (200 OK)**:
     ```json
     {
       "code": "ok"
@@ -47,62 +47,100 @@ The service exposes the following endpoints. For detailed request/response model
     ```
 
 - `POST /webhooks/amocrm`
-  - **Description**: Receives new messages sent by agents from an amoCRM chat.
-  - **Request Body**: `AmoIncomingWebhook`.
-  - **Success Response (200 OK)**:
+  - **Описание**: Получает новые сообщения, отправленные операторами из чата amoCRM.
+  - **Тело запроса**: `AmoIncomingWebhook`.
+  - **Успешный ответ (200 OK)**:
     ```json
     {
       "code": "ok"
     }
     ```
 
-## Configuration
+## Конфигурация
 
-The service is configured using environment variables. Create a `.env` file in the project root to manage them.
+Сервис настраивается с помощью переменных окружения. Создайте файл `.env` в корне проекта, скопировав `.env.sample` и заполнив значения.
 
-| Variable | Description | Default Value |
+### Edna
+
+| Переменная | Описание | Значение по умолчанию |
 | --- | --- | --- |
-| `EDNA_API_KEY` | Your API key for edna Pulse. | `your_edna_api_key` |
-| `AMOCRM_BASE_URL` | The base URL of your amoCRM instance (e.g., `https://your_subdomain.amocrm.ru`). | `https://your_subdomain.amocrm.ru` |
-| `AMOCRM_TOKEN` | Your Bearer token for the amoCRM API. | `your_amocrm_token` |
+| `EDNA_API_KEY` | Ваш API-ключ для edna Pulse. | - |
+| `EDNA_BASE_URL` | Базовый URL API для edna. | `https://app.edna.ru` |
+| `EDNA_IM_TYPE` | Тип используемого канала (например, `whatsapp`). | `whatsapp` |
+| `EDNA_SEND_PATH` | Путь API для отправки сообщений. | `/api/messages/send` |
 
-## Setup and Running
+### amoCRM (Чаты / amojo)
 
-The easiest way to run the service is using Docker.
+Эти настройки необходимы для подключения к API Чатов amoCRM (amojo).
 
-1.  **Create a `.env` file** in the project root with the necessary configuration:
-    ```env
-    EDNA_API_KEY=your_key_from_edna
-    AMOCRM_BASE_URL=https://youraccount.amocrm.ru
-    AMOCRM_TOKEN=your_amocrm_api_token
+| Переменная | Описание | Значение по умолчанию |
+| --- | --- | --- |
+| `AMOCRM_AMOJO_BASE_URL` | Базовый URL для API amojo. | `https://amojo.amocrm.ru` |
+| `AMOCRM_CHANNEL_ID` | ID вашего канала в amoCRM. | - |
+| `AMOCRM_CHANNEL_SECRET` | Секретный ключ для вашего канала. | - |
+| `AMOCRM_ACCOUNT_ID` | ID вашего аккаунта amoCRM. | - |
+| `AMOCRM_CONNECT_TITLE` | Отображаемое имя для подключения интеграции. | `Integration Channel` |
+| `AMOCRM_HOOK_API_VERSION`| Версия API вебхуков для использования. | `v2` |
+
+### amoCRM (REST API - Опционально)
+
+Эти переменные нужны, только если вы используете другие функции REST API amoCRM.
+
+| Переменная | Описание | Значение по умолчанию |
+| --- | --- | --- |
+| `AMOCRM_BASE_URL` | Базовый URL вашего экземпляра amoCRM. | `https://your_subdomain.amocrm.ru` |
+| `AMOCRM_TOKEN` | Ваш Bearer-токен для REST API amoCRM. | `your_amocrm_token` |
+
+
+## Установка и запуск
+
+Рекомендуемый способ запуска сервиса — использование Docker Compose.
+
+1.  **Создайте файл `.env`**:
+    Скопируйте файл `.env.sample` в `.env` и укажите ваши учетные данные для edna и amoCRM.
+    ```bash
+    cp .env.sample .env
     ```
+    Как минимум, вам нужно установить `EDNA_API_KEY`, `AMOCRM_CHANNEL_ID`, `AMOCRM_CHANNEL_SECRET` и `AMOCRM_ACCOUNT_ID`.
 
-2.  **Build the Docker image**:
+2.  **Запустите с помощью Docker Compose**:
+    ```bash
+    docker-compose up --build
+    ```
+    Сервис будет доступен по адресу `http://localhost:28000`.
+
+### Альтернатива: Сборка Docker вручную
+
+Если вы предпочитаете не использовать Docker Compose, вы можете собрать и запустить контейнер вручную.
+
+1.  **Создайте файл `.env`**, как описано выше.
+
+2.  **Соберите Docker-образ**:
     ```bash
     docker build -t edna-amocrm-integration . -f src/Dockerfile
     ```
 
-3.  **Run the container**:
+3.  **Запустите контейнер**:
     ```bash
-    docker run -d --env-file .env -p 8000:8000 --name edna-amocrm-app edna-amocrm-integration
+    docker run -d --env-file .env -p 28000:8000 --name edna-amocrm-app edna-amocrm-integration
     ```
-The service will be available at `http://localhost:8000`.
+Сервис будет доступен по адресу `http://localhost:28000`.
 
-## Webhook Payload Examples
+## Примеры полезной нагрузки вебхуков
 
-### Edna: Incoming Message
+### Edna: Входящее сообщение
 
 ```json
 {
     "id": "msg-12345",
     "imType": "whatsapp",
     "subject": "79001234567",
-    "text": "Hello, I have a question!",
+    "text": "Здравствуйте, у меня вопрос!",
     "fromClient": true
 }
 ```
 
-### Edna: Status Update
+### Edna: Обновление статуса
 
 ```json
 {
@@ -111,18 +149,18 @@ The service will be available at `http://localhost:8000`.
 }
 ```
 
-### amoCRM: Incoming Webhook
+### amoCRM: Входящий вебхук
 
 ```json
 {
     "message": {
         "id": "chat-msg-67890",
-        "text": "Hello, how can I help you?",
+        "text": "Здравствуйте, чем могу помочь?",
         "date": 1678886400
     },
     "sender": {
         "id": "user-1",
-        "name": "John Doe"
+        "name": "Иван Петров"
     },
     "conversation": {
         "id": "chat-xyz"

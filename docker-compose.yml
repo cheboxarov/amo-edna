@@ -1,0 +1,13 @@
+services:
+  api:
+    build:
+      context: ./src
+      dockerfile: Dockerfile
+    container_name: amo-edna-api
+    env_file:
+      - .env
+    ports:
+      - "28000:8000"
+    volumes:
+      - ./src:/app
+    restart: unless-stopped

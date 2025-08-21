@@ -17,22 +17,25 @@ from presentation.schemas.edna import EdnaIncomingMessage, EdnaStatusUpdate
 def edna_message_to_domain(payload: EdnaIncomingMessage) -> Message:
 	content_type = MessageContentType.text
 	attachment = None
-	if payload.attachment:
+	message_content = payload.messageContent
+
+	if message_content.attachment:
 		content_type = (
 			MessageContentType.image
-			if "image" in (payload.attachment.mimeType or "")
+			if "image" in (message_content.attachment.mimeType or "")
 			else MessageContentType.file
 		)
 		attachment = Attachment(
-			url=payload.attachment.url,
-			mime_type=payload.attachment.mimeType,
-			filename=payload.attachment.name,
-			size_bytes=payload.attachment.size,
+			url=message_content.attachment.url,
+			mime_type=message_content.attachment.mimeType,
+			filename=message_content.attachment.name,
+			size_bytes=message_content.attachment.size,
 		)
 
 	sender = Participant(
-		provider_user_id=payload.subject,
+		provider_user_id=payload.subscriber.identifier,  # Use identifier (phone number)
 		role=ParticipantRole.client,
+		display_name=payload.userInfo.userName,
 	)
 	# В edna получатель — это сам канал/линия, у него нет ID.
 	# Мы должны будем найти ID менеджера/бота amoCRM для ответа.
@@ -45,13 +48,13 @@ def edna_message_to_domain(payload: EdnaIncomingMessage) -> Message:
 		id=str(uuid4()),
 		direction=MessageDirection.inbound,  # Входящее от клиента в amoCRM
 		content_type=content_type,
-		text=payload.text,
+		text=message_content.text,
 		attachment=attachment,
 		source_provider=ProviderName.edna,
-		source_conversation_id=payload.subject,
-		source_message_id=payload.id,
+		source_conversation_id=payload.subject,  # This seems to be the conversation identifier
+		source_message_id=str(payload.id),  # The message ID
 		target_provider=ProviderName.amocrm,
-		sent_at=datetime.now(),
+		sent_at=payload.receivedAt,
 		sender=sender,
 		recipient=recipient,
 	)

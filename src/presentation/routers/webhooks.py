@@ -20,9 +20,35 @@ from core.config import settings
 router = APIRouter(prefix="/webhooks")
 
 
+import logging
+from fastapi import APIRouter, Depends, Header, HTTPException
+from pydantic import BaseModel
+from typing import Union, Optional
+
+from presentation.schemas.edna import EdnaIncomingMessage, EdnaStatusUpdate
+from presentation.schemas.amocrm import AmoIncomingWebhook
+from use_cases import (
+	RouteMessageFromAmoCrmUseCase,
+	RouteMessageFromEdnaUseCase,
+	UpdateMessageStatusUseCase,
+)
+from infrastructure.http_clients.amocrm_client import AmoCrmHttpClient
+from infrastructure.http_clients.edna_client import EdnaHttpClient
+from infrastructure.repositories.in_memory_links import (
+	InMemoryConversationLinkRepository,
+	InMemoryMessageLinkRepository,
+)
+from core.config import settings
+
+router = APIRouter(prefix="/webhooks")
+
+
 # --- DI Container ---
 class Container:
 	def __init__(self):
+		logger = logging.getLogger("use_cases")
+		logger.setLevel(logging.INFO)
+
 		self.conv_link_repo = InMemoryConversationLinkRepository()
 		self.msg_link_repo = InMemoryMessageLinkRepository()
 		self.edna_client = EdnaHttpClient(settings=settings.edna)
@@ -31,6 +57,7 @@ class Container:
 			amocrm_provider=self.amocrm_client,
 			conv_links=self.conv_link_repo,
 			msg_links=self.msg_link_repo,
+			logger=logger,
 		)
 		self.route_from_amocrm_uc = RouteMessageFromAmoCrmUseCase(
 			edna_provider=self.edna_client,

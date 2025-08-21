@@ -55,6 +55,12 @@ async def edna_webhook_validation():
 	return Ok()
 
 
+@router.head("/edna", response_model=Ok)
+async def edna_webhook_validation_head():
+	"""Handles Edna webhook validation HEAD request."""
+	return Ok()
+
+
 @router.post("/edna", response_model=Ok)
 async def edna_webhook(
 	payload: Union[EdnaIncomingMessage, EdnaStatusUpdate],

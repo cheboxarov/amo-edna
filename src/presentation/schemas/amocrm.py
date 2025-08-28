@@ -5,12 +5,20 @@ from pydantic import BaseModel, Field
 
 class AmoMessage(BaseModel):
 	id: str
+	type: str
 	text: Optional[str] = None
-	media: Optional[str] = None
-	file_name: Optional[str] = None
-	file_size: Optional[int] = None
-	mime_type: Optional[str] = None
-	timestamp: int = Field(..., alias="date")
+	markup: Optional[str] = None
+	tag: str = ""
+	media: str = ""
+	thumbnail: str = ""
+	file_name: str = ""
+	file_size: int = 0
+
+
+class AmoReceiver(BaseModel):
+	id: str
+	name: str
+	client_id: str
 
 
 class AmoSender(BaseModel):
@@ -20,15 +28,19 @@ class AmoSender(BaseModel):
 
 class AmoConversation(BaseModel):
 	id: str
+	client_id: str
 
 
-class AmoAccount(BaseModel):
-	id: str
-	subdomain: str
+class AmoIncomingMessage(BaseModel):
+	receiver: AmoReceiver
+	sender: AmoSender
+	conversation: AmoConversation
+	timestamp: int
+	msec_timestamp: int
+	message: AmoMessage
 
 
 class AmoIncomingWebhook(BaseModel):
-	message: AmoMessage
-	sender: AmoSender
-	conversation: AmoConversation
-	account: AmoAccount
+	account_id: str
+	time: int
+	message: AmoIncomingMessage

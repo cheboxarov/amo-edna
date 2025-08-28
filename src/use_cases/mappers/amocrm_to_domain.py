@@ -15,40 +15,44 @@ from presentation.schemas.amocrm import AmoIncomingWebhook
 def amocrm_to_domain(payload: AmoIncomingWebhook) -> Message:
 	content_type = MessageContentType.text
 	attachment = None
-	if payload.message.media:
-		content_type = (
-			MessageContentType.image
-			if "image" in (payload.message.mime_type or "")
-			else MessageContentType.file
-		)
+
+	if payload.message.message.type == "file":
+		content_type = MessageContentType.file
+	elif payload.message.message.type == "image":
+		content_type = MessageContentType.image
+	else:
+		content_type = MessageContentType.text
+
+	if payload.message.message.media:
 		attachment = Attachment(
-			url=payload.message.media,
-			mime_type=payload.message.mime_type,
-			filename=payload.message.file_name,
-			size_bytes=payload.message.file_size,
+			url=payload.message.message.media,
+			mime_type=None,  # В новых данных нет mime_type
+			filename=payload.message.message.file_name,
+			size_bytes=payload.message.message.file_size,
 		)
 
 	sender = Participant(
-		provider_user_id=payload.sender.id,
+		provider_user_id=payload.message.sender.id,
 		role=ParticipantRole.agent,
-		display_name=payload.sender.name,
+		display_name=payload.message.sender.name,
 	)
-	# В amoCRM получатель — это сам канал, у него нет ID.
-	# Мы должны будем найти ID клиента edna по ID чата amoCRM.
+
+	# Получатель - это клиент из receiver
 	recipient = Participant(
-		provider_user_id="unknown",  # Будет определен позже
+		provider_user_id=payload.message.receiver.client_id,
 		role=ParticipantRole.client,
+		display_name=payload.message.receiver.name,
 	)
 
 	return Message(
 		id=str(uuid4()),
 		direction=MessageDirection.outbound,  # Исходящее из amoCRM к клиенту
 		content_type=content_type,
-		text=payload.message.text,
+		text=payload.message.message.text,
 		attachment=attachment,
 		source_provider=ProviderName.amocrm,
-		source_conversation_id=payload.conversation.id,
-		source_message_id=payload.message.id,
+		source_conversation_id=payload.message.conversation.id,
+		source_message_id=payload.message.message.id,
 		target_provider=ProviderName.edna,
 		sent_at=datetime.fromtimestamp(payload.message.timestamp),
 		sender=sender,

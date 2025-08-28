@@ -111,8 +111,10 @@ async def edna_webhook(
 	return Ok()
 
 
-@router.post("/amocrm", response_model=Ok)
+@router.post("/amocrm/{secret_key}_{account_id}", response_model=Ok)
 async def amocrm_webhook(
+	secret_key: str,
+	account_id: str,
 	payload: AmoIncomingWebhook,
 	# В amoCRM валидация обычно идет по секретному ключу в URL или подписи
 	route_uc: RouteMessageFromAmoCrmUseCase = Depends(
@@ -120,5 +122,6 @@ async def amocrm_webhook(
 	),
 ):
 	# TODO: Реализовать валидацию вебхука
+	# Можно добавить валидацию secret_key здесь
 	await route_uc.execute(payload)
 	return Ok()

@@ -19,6 +19,7 @@ from domain.models import (
 )
 from domain.ports.message_provider import MessageProvider, StatusNotifier
 from core.config import AmoCrmSettings
+from core.error_logger import get_error_reporter
 
 
 class AmoCrmHttpClient(MessageProvider, StatusNotifier):
@@ -217,3 +218,50 @@ class AmoCrmHttpClient(MessageProvider, StatusNotifier):
 			"error": "" if delivery_status_map[status.status] in (1, 2) else "Error",
 		}
 		await self._post(path, payload)
+
+	async def notify_delivery_error(self, message_id: str, error_code: int = 903, error_text: str = "") -> None:
+		"""Отправляет статус ошибки доставки для сообщения в AmoCRM"""
+		await self._ensure_scope_id()
+
+		if not error_text:
+			error_messages = {
+				901: "Пользователь удалил чат",
+				902: "Интеграция отключена на стороне канала",
+				903: "Внутренняя ошибка сервера",
+				904: "Невозможно создать чат",
+				905: "Произошла неизвестная ошибка",
+			}
+			error_text = error_messages.get(error_code, "Произошла ошибка при отправке сообщения")
+
+		path = f"/v2/origin/custom/{self._scope_id}/{message_id}/delivery_status"
+		payload = {
+			"msgid": message_id,
+			"delivery_status": -1,  # Статус ошибки
+			"error_code": error_code,
+			"error": error_text,
+		}
+
+		try:
+			self._logger.info(
+				"Отправка статуса ошибки доставки в AmoCRM: message_id=%s, error_code=%s, error_text=%s",
+				message_id, error_code, error_text
+			)
+			await self._post(path, payload)
+			self._logger.info("Статус ошибки доставки успешно отправлен в AmoCRM")
+		except Exception as e:
+			self._logger.error(
+				"Не удалось отправить статус ошибки доставки в AmoCRM: message_id=%s, error=%s",
+				message_id, str(e)
+			)
+
+			# Создаем детальный отчет об ошибке отправки статуса доставки
+			try:
+				error_reporter = get_error_reporter()
+				error_reporter.log_delivery_status_error(
+					error=e,
+					provider="amocrm",
+					message_id=message_id,
+					error_details=f"Failed to send delivery error status. Original error: {error_text}"
+				)
+			except Exception as report_error:
+				self._logger.error("Не удалось создать отчет об ошибке статуса доставки: %s", str(report_error))

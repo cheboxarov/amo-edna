@@ -16,6 +16,7 @@ from infrastructure.repositories.in_memory_links import (
 	InMemoryMessageLinkRepository,
 )
 from core.config import settings
+from core.error_logger import get_error_reporter
 
 router = APIRouter(prefix="/webhooks")
 
@@ -61,8 +62,10 @@ class Container:
 		)
 		self.route_from_amocrm_uc = RouteMessageFromAmoCrmUseCase(
 			edna_provider=self.edna_client,
+			amocrm_provider=self.amocrm_client,
 			conv_links=self.conv_link_repo,
 			msg_links=self.msg_link_repo,
+			logger=logger,
 		)
 		self.update_status_uc = UpdateMessageStatusUseCase(
 			amocrm_notifier=self.amocrm_client, msg_links=self.msg_link_repo
@@ -121,7 +124,51 @@ async def amocrm_webhook(
 		lambda: container.route_from_amocrm_uc
 	),
 ):
+	logger = logging.getLogger("amocrm_webhook")
+
+	logger.info(
+		"Получен вебхук от AmoCRM: secret_key=%s, account_id=%s, sender=%s, conversation_id=%s, message_type=%s",
+		secret_key,
+		account_id,
+		payload.message.sender.name,
+		payload.message.conversation.id,
+		payload.message.message.type
+	)
+
+	logger.debug(
+		"Детали вебхука: time=%s, receiver=%s, message_id=%s, text='%s'",
+		payload.time,
+		payload.message.receiver.name,
+		payload.message.message.id,
+		payload.message.message.text[:100] + "..." if payload.message.message.text and len(payload.message.message.text) > 100 else payload.message.message.text
+	)
+
 	# TODO: Реализовать валидацию вебхука
 	# Можно добавить валидацию secret_key здесь
-	await route_uc.execute(payload)
-	return Ok()
+	try:
+		await route_uc.execute(payload)
+		logger.info("Вебхук от AmoCRM успешно обработан")
+		return Ok()
+	except Exception as e:
+		logger.exception("Ошибка при обработке вебхука от AmoCRM: %s", str(e))
+
+		# Создаем детальный отчет об ошибке вебхука
+		try:
+			error_reporter = get_error_reporter()
+			error_reporter.log_error(
+				error=e,
+				context={
+					"webhook_source": "amocrm",
+					"secret_key": secret_key,
+					"account_id": account_id,
+					"sender": payload.message.sender.name if hasattr(payload, 'message') else "unknown",
+					"conversation_id": payload.message.conversation.id if hasattr(payload, 'message') else "unknown",
+					"message_type": payload.message.message.type if hasattr(payload, 'message') and hasattr(payload.message, 'message') else "unknown"
+				},
+				message="Webhook processing error from AmoCRM"
+			)
+		except Exception as report_error:
+			logger.error("Не удалось создать отчет об ошибке вебхука: %s", str(report_error))
+
+		# В случае ошибки все равно возвращаем 200, чтобы AmoCRM не повторял запрос
+		return Ok()

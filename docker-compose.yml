@@ -11,8 +11,8 @@ services:
       - EDNA_SEND_PATH=/api/messages/send
 
       - AMOCRM_AMOJO_BASE_URL=https://amojo.amocrm.ru
-      - AMOCRM_CHANNEL_ID=60803015-ea1a-40cd-ba90-f7fc660eaff5
-      - AMOCRM_CHANNEL_SECRET=dcfb2233db2640b94e39d827b162cfe1b265a27e
+      - AMOCRM_CHANNEL_ID=09747b7f-c6d3-4ee3-bfc3-a0db8550c34d
+      - AMOCRM_CHANNEL_SECRET=2c1249562257eb6b81a8427c7f2d2189f3d008de
       - AMOCRM_ACCOUNT_ID=d1987892-f0ef-4b43-aa1e-8f1e114565dc
       - AMOCRM_CONNECT_TITLE=Integration Channel
       - AMOCRM_HOOK_API_VERSION=v2

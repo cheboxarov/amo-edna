@@ -36,14 +36,118 @@ class EdnaHttpClient(MessageProvider, StatusNotifier):
 			bool(self._status_cb or self._in_msg_cb or self._matcher_cb),
 		)
 
+	async def get_channels(self, types: Optional[str] = None) -> list[Dict[str, Any]]:
+		"""Получить список каналов edna для диагностики"""
+		if types is None:
+			types = self._im_type.upper()  # Преобразуем whatsapp в WHATSAPP
+
+		try:
+			params = {"types": types}
+			self._logger.info("Получение списка каналов edna: types=%s", types)
+
+			response = await self._client.get("/api/channel-profile", params=params)
+			response.raise_for_status()
+
+			channels = response.json()
+			self._logger.info(f"Получено {len(channels)} каналов edna: {channels}")
+
+			# Логируем информацию о каналах
+			for channel in channels:
+				self._logger.debug(
+					"Канал: id=%s, name='%s', subjectId=%s, type=%s, active=%s, registrationStatus=%s",
+					channel.get("id"),
+					channel.get("name"),
+					channel.get("subjectId"),
+					channel.get("type"),
+					channel.get("active"),
+					channel.get("registrationStatus")
+				)
+
+			return channels
+
+		except Exception as e:
+			self._logger.error("Не удалось получить список каналов edna: %s", str(e))
+
+			# Логируем ошибку в error_reporter
+			try:
+				error_reporter = get_error_reporter()
+				error_reporter.log_api_error(
+					error=e,
+					service_name="Edna",
+					endpoint="/api/channel-profile",
+					request_data={"types": types}
+				)
+			except Exception as report_error:
+				self._logger.error("Не удалось создать отчет об ошибке получения каналов: %s", str(report_error))
+
+			# Возвращаем пустой список, чтобы не прерывать инициализацию
+			return []
+
+	def _validate_callback_url(self, url: str) -> bool:
+		"""Простая валидация URL для callback"""
+		if not url:
+			return False
+		if len(url) > 500:
+			self._logger.warning("URL слишком длинный (>%d символов): %s", 500, url)
+			return False
+		if not url.startswith("https://"):
+			self._logger.warning("URL должен использовать HTTPS: %s", url)
+			return False
+		return True
+
 	async def ensure_ready(self) -> None:
-		if self._subject_id and (self._status_cb or self._in_msg_cb or self._matcher_cb):
-			await self.set_callbacks(
-				subject_id=self._subject_id,
-				status_url=self._status_cb,
-				in_message_url=self._in_msg_cb,
-				matcher_url=self._matcher_cb,
-			)
+		# Если заданы callback URL, получаем каналы и устанавливаем коллбеки для всех каналов
+		if self._status_cb or self._in_msg_cb or self._matcher_cb:
+			# Валидируем URL
+			valid_urls = []
+			if self._status_cb and self._validate_callback_url(self._status_cb):
+				valid_urls.append(("status", self._status_cb))
+			if self._in_msg_cb and self._validate_callback_url(self._in_msg_cb):
+				valid_urls.append(("in_message", self._in_msg_cb))
+			if self._matcher_cb and self._validate_callback_url(self._matcher_cb):
+				valid_urls.append(("matcher", self._matcher_cb))
+
+			if not valid_urls:
+				self._logger.warning("Все callback URL невалидны или не заданы, пропускаем настройку коллбеков")
+				return
+
+			# Получаем список каналов для диагностики
+			try:
+				channels = await self.get_channels()
+				if channels:
+					active_channels = [c for c in channels if c.get("active")]
+					self._logger.info("Найдено %d активных каналов из %d", len(active_channels), len(channels))
+				else:
+					self._logger.warning("Не удалось получить список каналов, но продолжаем настройку коллбеков")
+			except Exception as e:
+				self._logger.warning("Ошибка при получении каналов, но продолжаем настройку коллбеков: %s", str(e))
+
+			# Устанавливаем коллбеки для всех каналов (без subject_id)
+			try:
+				await self.set_callbacks_global(
+					status_url=self._status_cb if self._status_cb else None,
+					in_message_url=self._in_msg_cb if self._in_msg_cb else None,
+					matcher_url=self._matcher_cb if self._matcher_cb else None,
+				)
+				self._logger.info("Коллбеки успешно установлены для всех каналов")
+			except Exception as e:
+				self._logger.error("Не удалось установить коллбеки: %s", str(e))
+				# Логируем ошибку в error_reporter
+				try:
+					error_reporter = get_error_reporter()
+					error_reporter.log_api_error(
+						error=e,
+						service_name="Edna",
+						endpoint=self._callback_path,
+						request_data={
+							"statusCallbackUrl": self._status_cb,
+							"inMessageCallbackUrl": self._in_msg_cb,
+							"messageMatcherCallbackUrl": self._matcher_cb
+						}
+					)
+				except Exception as report_error:
+					self._logger.error("Не удалось создать отчет об ошибке настройки коллбеков: %s", str(report_error))
+				raise
 
 	def _build_payload(self, message: Message) -> Dict[str, Any]:
 		subject = message.recipient.provider_user_id or message.target_conversation_id or ""
@@ -81,6 +185,40 @@ class EdnaHttpClient(MessageProvider, StatusNotifier):
 		resp = await self._client.post(self._callback_path, json=body)
 		self._logger.debug("Edna callback set response %s %s", resp.status_code, resp.text)
 		resp.raise_for_status()
+
+	async def set_callbacks_global(
+		self,
+		status_url: Optional[str] = None,
+		in_message_url: Optional[str] = None,
+		matcher_url: Optional[str] = None,
+	) -> None:
+		"""Установить коллбеки для всех каналов тенанты (без указания subject_id)"""
+		body: Dict[str, Any] = {}
+		if status_url:
+			body["statusCallbackUrl"] = status_url
+		if in_message_url:
+			body["inMessageCallbackUrl"] = in_message_url
+		if matcher_url:
+			body["messageMatcherCallbackUrl"] = matcher_url
+
+		if not body:
+			self._logger.warning("Не указаны URL для коллбеков, пропускаем настройку")
+			return
+
+		self._logger.info("Установка коллбеков для всех каналов (глобально)")
+		resp = await self._client.post(self._callback_path, json=body)
+		self._logger.debug("Edna global callback set response %s %s", resp.status_code, resp.text)
+		resp.raise_for_status()
+
+		# Логируем успешную настройку
+		enabled_callbacks = []
+		if status_url:
+			enabled_callbacks.append("status")
+		if in_message_url:
+			enabled_callbacks.append("in_message")
+		if matcher_url:
+			enabled_callbacks.append("matcher")
+		self._logger.info("Глобальные коллбеки установлены: %s", ", ".join(enabled_callbacks))
 
 	async def send_message(self, message: Message) -> SentMessageResult:
 		payload = self._build_payload(message)

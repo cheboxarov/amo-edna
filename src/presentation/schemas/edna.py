@@ -37,6 +37,21 @@ class EdnaMessageContent(BaseModel):
     caption: Optional[str] = None
 
 
+class EdnaChannel(BaseModel):
+    id: int
+    name: str
+    subjectId: Optional[int] = None
+    channelAttribute: Optional[str] = None
+    subject: str
+    active: bool
+    registrationStatus: str
+    type: str
+    instruction: Optional[str] = None
+    limit: Optional[str] = None
+    qualityScore: Optional[str] = None
+    qualityStatus: Optional[str] = None
+
+
 class EdnaIncomingMessage(BaseModel):
     id: int
     subject: str

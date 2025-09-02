@@ -25,7 +25,7 @@ class EdnaHttpClient(MessageProvider, StatusNotifier):
 		self._im_type = settings.im_type
 		self._subject_id = settings.subject_id
 		self._cascade_id = settings.cascade_id
-		self._subscriber_id_type = (settings.subscriber_id_type or "PHONE").upper()
+		self._subscriber_id_type = (settings.subscriber_id_type or "EDNA_ID").upper()
 		self._status_cb = settings.status_callback_url
 		self._in_msg_cb = settings.in_message_callback_url
 		self._matcher_cb = settings.message_matcher_callback_url
@@ -161,6 +161,11 @@ class EdnaHttpClient(MessageProvider, StatusNotifier):
 		)
 		if not address:
 			raise ValueError("Address for subscriberFilter is empty")
+
+		self._logger.info(
+			"Подготовка subscriberFilter: address=%s, type=%s",
+			address, self._subscriber_id_type
+		)
 
 		content: Dict[str, Any] = {}
 		channel = (self._im_type or "whatsapp").lower()
@@ -342,6 +347,13 @@ class EdnaHttpClient(MessageProvider, StatusNotifier):
 				"Детальный ответ Edna API при ошибке: %s",
 				json.dumps({"status_code": e.response.status_code, "response_body": e.response.text}, ensure_ascii=False)
 			)
+
+			# Специальная обработка для ошибок формата адреса
+			if e.response.status_code == 400 and "error-address-format" in e.response.text:
+				self._logger.error(
+					"Edna сообщает об ошибке формата адреса. Возможно, нужно использовать другой тип идентификатора или получить номер телефона через AmoCRM API. "
+					"Текущий type: %s. Проверьте переменную EDNA_SUBSCRIBER_ID_TYPE", self._subscriber_id_type
+				)
 
 			# Создаем детальный отчет об ошибке API
 			try:

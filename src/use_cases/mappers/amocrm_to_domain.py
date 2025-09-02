@@ -38,6 +38,8 @@ def amocrm_to_domain(payload: AmoIncomingWebhook) -> Message:
 	)
 
 	# Получатель - это клиент из receiver
+	# Для Edna нужен номер телефона, но в AmoCRM webhook его нет
+	# Используем client_id как временный идентификатор
 	recipient = Participant(
 		provider_user_id=payload.message.receiver.client_id,
 		role=ParticipantRole.client,

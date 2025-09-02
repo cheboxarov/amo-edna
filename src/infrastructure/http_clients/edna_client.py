@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 from typing import Any, Dict, Optional
@@ -124,32 +125,42 @@ class EdnaHttpClient(MessageProvider, StatusNotifier):
 			except Exception as e:
 				self._logger.warning("Ошибка при получении каналов, но продолжаем настройку коллбеков: %s", str(e))
 
-			# Устанавливаем коллбеки для всех каналов (без subject_id)
-			try:
-				await self.set_callbacks_global(
-					status_url=self._status_cb if self._status_cb else None,
-					in_message_url=self._in_msg_cb if self._in_msg_cb else None,
-					matcher_url=self._matcher_cb if self._matcher_cb else None,
-				)
-				self._logger.info("Коллбеки успешно установлены для всех каналов")
-			except Exception as e:
-				self._logger.error("Не удалось установить коллбеки: %s", str(e))
-				# Логируем ошибку в error_reporter
+			# Устанавливаем коллбеки для всех каналов (без subject_id) с ретраем через 5 сек
+			max_retries = 10  # Максимум 10 попыток
+			retry_count = 0
+
+			while retry_count < max_retries:
 				try:
-					error_reporter = get_error_reporter()
-					error_reporter.log_api_error(
-						error=e,
-						service_name="Edna",
-						endpoint=self._callback_path,
-						request_data={
-							"statusCallbackUrl": self._status_cb,
-							"inMessageCallbackUrl": self._in_msg_cb,
-							"messageMatcherCallbackUrl": self._matcher_cb
-						}
+					await self.set_callbacks_global(
+						status_url=self._status_cb if self._status_cb else None,
+						in_message_url=self._in_msg_cb if self._in_msg_cb else None,
+						matcher_url=self._matcher_cb if self._matcher_cb else None,
 					)
-				except Exception as report_error:
-					self._logger.error("Не удалось создать отчет об ошибке настройки коллбеков: %s", str(report_error))
-				raise
+					self._logger.info("Коллбеки успешно установлены для всех каналов")
+					break  # Успешно, выходим из цикла
+				except Exception as e:
+					retry_count += 1
+					if retry_count >= max_retries:
+						self._logger.error("Не удалось установить коллбеки после %d попыток: %s", max_retries, str(e))
+						# Логируем ошибку в error_reporter
+						try:
+							error_reporter = get_error_reporter()
+							error_reporter.log_api_error(
+								error=e,
+								service_name="Edna",
+								endpoint=self._callback_path,
+								request_data={
+									"statusCallbackUrl": self._status_cb,
+									"inMessageCallbackUrl": self._in_msg_cb,
+									"messageMatcherCallbackUrl": self._matcher_cb
+								}
+							)
+						except Exception as report_error:
+							self._logger.error("Не удалось создать отчет об ошибке настройки коллбеков: %s", str(report_error))
+						raise
+
+					self._logger.warning("Попытка %d/%d: Не удалось установить коллбеки: %s. Повтор через 5 секунд...", retry_count, max_retries, str(e))
+					await asyncio.sleep(5)
 
 	def _build_payload(self, message: Message) -> Dict[str, Any]:
 		if not self._cascade_id:

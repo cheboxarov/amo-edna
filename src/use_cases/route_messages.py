@@ -179,9 +179,15 @@ class RouteMessageFromAmoCrmUseCase:
 				target_conversation_id=result.reference.conversation_id,
 			)
 
+			self._logger.info(
+				"📝 Сохраняем связь сообщений: source_provider=%s, source_message_id=%s -> target_provider=%s, target_message_id=%s, target_conversation_id=%s",
+				message.source_provider, message.source_message_id,
+				result.reference.provider, result.reference.message_id, result.reference.conversation_id
+			)
+
 			await self._msg_links.save_link(link)
 			self._logger.info(
-				"Сохранена связь сообщений: source_id=%s -> target_id=%s",
+				"✅ Связь сообщений сохранена: source_id=%s -> target_id=%s",
 				message.source_message_id, result.reference.message_id
 			)
 

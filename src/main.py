@@ -87,6 +87,8 @@ logging.getLogger("amocrm.amojo").setLevel(logging.DEBUG)
 logging.getLogger("edna").setLevel(logging.DEBUG)
 logging.getLogger("amocrm_webhook").setLevel(logging.INFO)
 logging.getLogger("request_body_logger").setLevel(logging.INFO)
+logging.getLogger("use_cases").setLevel(logging.DEBUG)
+logging.getLogger("message_links_repo").setLevel(logging.DEBUG)
 
 # Отключаем propagation для error_logger чтобы избежать дублирования
 error_logger.propagate = False

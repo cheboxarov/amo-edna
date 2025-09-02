@@ -1,5 +1,6 @@
 from use_cases import ConversationLinkRepository
 from domain.models import ConversationLink, MessageLink
+import logging
 
 
 class InMemoryConversationLinkRepository(ConversationLinkRepository):
@@ -32,9 +33,29 @@ class InMemoryConversationLinkRepository(ConversationLinkRepository):
 class InMemoryMessageLinkRepository:
 	def __init__(self):
 		self._links: dict[str, MessageLink] = {}  # source_message_id -> MessageLink
+		self._logger = logging.getLogger("message_links_repo")
 
 	async def get_link_by_source_id(self, source_message_id: str) -> MessageLink | None:
-		return self._links.get(source_message_id)
+		link = self._links.get(source_message_id)
+		self._logger.debug(
+			"Поиск связи по source_message_id=%s: найдено=%s",
+			source_message_id, link is not None
+		)
+		if link:
+			self._logger.debug(
+				"Найденная связь: source_provider=%s, source_id=%s -> target_provider=%s, target_id=%s",
+				link.source_provider, link.source_message_id, link.target_provider, link.target_message_id
+			)
+		else:
+			self._logger.debug("Всего сохраненных связей: %d", len(self._links))
+			if self._links:
+				self._logger.debug("Сохраненные source_ids: %s", list(self._links.keys())[:5])  # Показываем первые 5
+		return link
 
 	async def save_link(self, link: MessageLink) -> None:
+		self._logger.info(
+			"💾 Сохраняем связь: source_provider=%s, source_id=%s -> target_provider=%s, target_id=%s",
+			link.source_provider, link.source_message_id, link.target_provider, link.target_message_id
+		)
 		self._links[link.source_message_id] = link
+		self._logger.debug("Всего связей после сохранения: %d", len(self._links))

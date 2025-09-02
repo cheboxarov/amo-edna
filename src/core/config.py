@@ -10,9 +10,11 @@ class EdnaSettings(BaseSettings):
 	api_key: str = "your_edna_api_key"
 	base_url: str = "https://app.edna.ru"
 	im_type: str = "whatsapp"
-	send_path: str = "/api/messages/send"
+	send_path: str = "/api/cascade/schedule"
 	callback_path: str = "/api/callback/set"
 	subject_id: int | None = None
+	cascade_id: str | None = None
+	subscriber_id_type: str = "PHONE"
 	status_callback_url: str | None = None
 	in_message_callback_url: str | None = None
 	message_matcher_callback_url: str | None = None

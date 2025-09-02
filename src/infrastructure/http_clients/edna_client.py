@@ -24,6 +24,8 @@ class EdnaHttpClient(MessageProvider, StatusNotifier):
 		self._callback_path = settings.callback_path
 		self._im_type = settings.im_type
 		self._subject_id = settings.subject_id
+		self._cascade_id = settings.cascade_id
+		self._subscriber_id_type = (settings.subscriber_id_type or "PHONE").upper()
 		self._status_cb = settings.status_callback_url
 		self._in_msg_cb = settings.in_message_callback_url
 		self._matcher_cb = settings.message_matcher_callback_url
@@ -150,21 +152,57 @@ class EdnaHttpClient(MessageProvider, StatusNotifier):
 				raise
 
 	def _build_payload(self, message: Message) -> Dict[str, Any]:
-		subject = message.recipient.provider_user_id or message.target_conversation_id or ""
-		payload: Dict[str, Any] = {
-			"imType": self._im_type,
-			"subject": subject,
-		}
-		if message.attachment is not None:
-			attachment = {
-				"url": message.attachment.url,
-				"mimeType": message.attachment.mime_type,
-				"name": message.attachment.filename,
-				"size": message.attachment.size_bytes,
+		if not self._cascade_id:
+			raise ValueError("EDNA cascade_id is required for cascade scheduling")
+
+		request_id = message.source_message_id or message.id
+		address = (
+			message.recipient.provider_user_id
+			or message.target_conversation_id
+			or message.source_conversation_id
+			or ""
+		)
+		if not address:
+			raise ValueError("Address for subscriberFilter is empty")
+
+		content: Dict[str, Any] = {}
+		channel = (self._im_type or "whatsapp").lower()
+
+		if channel == "sms":
+			content["smsContent"] = {
+				"text": message.text or ""
 			}
-			payload["attachment"] = {k: v for k, v in attachment.items() if v is not None}
-		if message.text is not None:
-			payload["text"] = message.text
+		else:
+			whatsapp_obj: Dict[str, Any] = {}
+			if message.attachment is None:
+				whatsapp_obj["contentType"] = "TEXT"
+				whatsapp_obj["text"] = message.text or ""
+			else:
+				att = message.attachment
+				if message.content_type.name.lower() == "image":
+					whatsapp_obj["contentType"] = "IMAGE"
+					whatsapp_obj["attachment"] = {
+						"url": att.url,
+						"name": att.filename or "image"
+					}
+				else:
+					whatsapp_obj["contentType"] = "DOCUMENT"
+					whatsapp_obj["attachment"] = {
+						"url": att.url,
+						"name": att.filename or "file"
+					}
+			content["whatsappContent"] = whatsapp_obj
+
+		payload: Dict[str, Any] = {
+			"requestId": request_id,
+			"cascadeId": self._cascade_id,
+			"subscriberFilter": {
+				"address": address,
+				"type": self._subscriber_id_type,
+			},
+			"content": content,
+		}
+
 		return payload
 
 	async def set_callbacks(
@@ -246,7 +284,7 @@ class EdnaHttpClient(MessageProvider, StatusNotifier):
 				message.attachment.url
 			)
 
-		self._logger.debug("Полный payload для Edna: %s", json.dumps(payload, indent=2, ensure_ascii=False))
+		self._logger.debug("Полный payload для Edna Cascade Schedule: %s", json.dumps(payload, indent=2, ensure_ascii=False))
 
 		try:
 			self._logger.info("Выполнение HTTP запроса к Edna API: %s%s", self._base_url, self._send_path)
@@ -271,7 +309,8 @@ class EdnaHttpClient(MessageProvider, StatusNotifier):
 			self._logger.debug("Ответ от Edna API: %s", json.dumps(data, indent=2, ensure_ascii=False))
 
 			returned_id: Optional[str] = (
-				data.get("id")
+				data.get("requestId")
+				or data.get("id")
 				or data.get("messageId")
 				or data.get("message_id")
 				or message.source_message_id

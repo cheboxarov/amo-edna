@@ -153,12 +153,38 @@ class EdnaHttpClient(MessageProvider, StatusNotifier):
 			raise ValueError("EDNA cascade_id is required for cascade scheduling")
 
 		request_id = message.source_message_id or message.id
-		address = (
-			message.recipient.provider_user_id
-			or message.target_conversation_id
-			or message.source_conversation_id
-			or ""
-		)
+
+		# Приоритет выбора адреса для subscriberFilter:
+		# 1. Если это телефон (начинается с цифр) - используем его
+		# 2. target_conversation_id (если есть связь)
+		# 3. recipient.provider_user_id
+		# 4. source_conversation_id (как fallback)
+
+		address = ""
+
+		# Проверяем, является ли recipient.provider_user_id номером телефона
+		if message.recipient.provider_user_id and message.recipient.provider_user_id.isdigit():
+			address = message.recipient.provider_user_id
+			self._logger.info("Используем номер телефона из recipient: %s", address)
+		# Если есть target_conversation_id и он выглядит как телефон
+		elif message.target_conversation_id and message.target_conversation_id.isdigit():
+			address = message.target_conversation_id
+			self._logger.info("Используем номер телефона из target_conversation_id: %s", address)
+		else:
+			# Fallback на другие варианты
+			address = (
+				message.target_conversation_id
+				or message.recipient.provider_user_id
+				or message.source_conversation_id
+				or ""
+			)
+			if not message.recipient.provider_user_id or not message.recipient.provider_user_id.isdigit():
+				self._logger.warning(
+					"recipient.provider_user_id не является номером телефона: %s. "
+					"Используем fallback адрес: %s",
+					message.recipient.provider_user_id, address
+				)
+
 		if not address:
 			raise ValueError("Address for subscriberFilter is empty")
 

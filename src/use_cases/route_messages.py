@@ -13,7 +13,9 @@ from core.error_logger import get_error_reporter
 class ConversationLinkRepository(Protocol):
 	async def get_edna_conversation_id(self, amocrm_chat_id: str) -> str | None: ...
 	async def get_amocrm_chat_id(self, edna_conversation_id: str) -> str | None: ...
+	async def get_phone_by_chat_id(self, amocrm_chat_id: str) -> str | None: ...
 	async def save_link(self, link: ConversationLink) -> None: ...
+	async def save_phone_for_chat(self, amocrm_chat_id: str, phone_number: str) -> None: ...
 
 
 class MessageLinkRepository(Protocol):
@@ -139,7 +141,21 @@ class RouteMessageFromAmoCrmUseCase:
 					message.source_conversation_id, target_conversation_id
 				)
 				message.target_conversation_id = target_conversation_id
-				message.recipient.provider_user_id = target_conversation_id
+
+				# Проверяем, есть ли сохраненный номер телефона для этого чата
+				saved_phone = await self._conv_links.get_phone_by_chat_id(message.source_conversation_id)
+				if saved_phone:
+					message.recipient.provider_user_id = saved_phone
+					self._logger.info(
+						"Используем сохраненный номер телефона: %s для чата %s",
+						saved_phone, message.source_conversation_id
+					)
+				else:
+					message.recipient.provider_user_id = target_conversation_id
+					self._logger.warning(
+						"Сохраненный номер телефона не найден для чата %s, используем conversation_id",
+						message.source_conversation_id
+					)
 
 			self._logger.info(
 				"Отправка сообщения в Edna: conversation_id=%s, sender=%s, text='%s'",
@@ -180,6 +196,18 @@ class RouteMessageFromAmoCrmUseCase:
 					"Сохранена новая связь разговоров: AmoCRM=%s -> Edna=%s",
 					message.source_conversation_id, result.reference.conversation_id
 				)
+
+				# Если у нас есть номер телефона получателя, сохраняем его для будущих сообщений
+				if (message.recipient.provider_user_id and
+					message.recipient.provider_user_id.isdigit()):
+					await self._conv_links.save_phone_for_chat(
+						message.source_conversation_id,
+						message.recipient.provider_user_id
+					)
+					self._logger.info(
+						"Сохранен номер телефона для чата: AmoCRM_chat_id=%s -> phone=%s",
+						message.source_conversation_id, message.recipient.provider_user_id
+					)
 
 		except Exception as e:
 			error_message = str(e)

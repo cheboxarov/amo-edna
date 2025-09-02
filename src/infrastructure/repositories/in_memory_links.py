@@ -5,6 +5,7 @@ from domain.models import ConversationLink, MessageLink
 class InMemoryConversationLinkRepository(ConversationLinkRepository):
 	def __init__(self):
 		self._links: dict[str, str] = {}  # amocrm_chat_id <-> edna_conversation_id
+		self._phones: dict[str, str] = {}  # amocrm_chat_id -> phone_number
 
 	async def get_edna_conversation_id(self, amocrm_chat_id: str) -> str | None:
 		return self._links.get(amocrm_chat_id)
@@ -16,8 +17,16 @@ class InMemoryConversationLinkRepository(ConversationLinkRepository):
 				return amocrm_id
 		return None
 
+	async def get_phone_by_chat_id(self, amocrm_chat_id: str) -> str | None:
+		"""Получить номер телефона по ID чата AmoCRM"""
+		return self._phones.get(amocrm_chat_id)
+
 	async def save_link(self, link: ConversationLink) -> None:
 		self._links[link.amocrm_chat_id] = link.edna_conversation_id
+
+	async def save_phone_for_chat(self, amocrm_chat_id: str, phone_number: str) -> None:
+		"""Сохранить номер телефона для чата AmoCRM"""
+		self._phones[amocrm_chat_id] = phone_number
 
 
 class InMemoryMessageLinkRepository:

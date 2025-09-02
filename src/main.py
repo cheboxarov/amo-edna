@@ -3,6 +3,7 @@ import logging.handlers
 import os
 from datetime import datetime
 from pathlib import Path
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from presentation.routers.health import router as health_router
 from presentation.routers.webhooks import router as webhooks_router, container
@@ -99,21 +100,20 @@ ERROR_LOGGER = error_logger
 # Инициализируем ErrorReporter
 setup_error_reporting(error_logger)
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+	await container.amocrm_client.ensure_ready()
+	await container.edna_client.ensure_ready()
+	yield
+
 print(f"Логирование настроено. Логи сохраняются в директорию: {logs_dir.absolute()}")
 
-app = FastAPI(title="edna-amocrm-integration")
+app = FastAPI(title="edna-amocrm-integration", lifespan=lifespan)
 
 app.middleware("http")(log_request_body_middleware)
 
 app.include_router(health_router)
 app.include_router(webhooks_router)
-
-
-@app.on_event("startup")
-async def startup() -> None:
-	await container.amocrm_client.ensure_ready()
-	await container.edna_client.ensure_ready()
-
 
 if __name__ == "__main__":
 	# Исключаем директорию logs из отслеживания изменений для предотвращения бесконечных перезапусков

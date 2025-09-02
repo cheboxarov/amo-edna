@@ -4,10 +4,25 @@ from pydantic import BaseModel
 from datetime import datetime
 
 
-# This model is for status updates, which seem to have a different structure.
+# Model for status updates from Edna Cascade API
+class EdnaPaymentData(BaseModel):
+    type: str
+    conversationId: str
+    conversationType: str
+    chargeable: Optional[bool] = None
+    at_type: Optional[str] = None  # for @type field
+
+
 class EdnaStatusUpdate(BaseModel):
-	id: str
-	status: str
+    requestId: str
+    messageId: int
+    cascadeId: int
+    cascadeStageUUID: str
+    subject: str
+    subjectId: int
+    status: str
+    statusAt: datetime
+    paymentData: EdnaPaymentData
 
 
 # New models for incoming messages based on the provided log

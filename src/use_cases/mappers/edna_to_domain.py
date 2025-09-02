@@ -62,14 +62,14 @@ def edna_message_to_domain(payload: EdnaIncomingMessage) -> Message:
 
 def edna_status_to_domain(payload: EdnaStatusUpdate) -> MessageStatusUpdate:
 	status_map = {
-		"sent": MessageStatus.sent,
-		"delivered": MessageStatus.delivered,
-		"read": MessageStatus.read,
+		"SENT": MessageStatus.sent,
+		"DELIVERED": MessageStatus.delivered,
+		"READ": MessageStatus.read,
 	}
 	return MessageStatusUpdate(
 		provider=ProviderName.edna,
-		conversation_id="unknown",  # Не приходит в статусе, нужно будет найти
-		message_id=payload.id,
-		status=status_map.get(payload.status, MessageStatus.sent),
-		occurred_at=datetime.now(),
+		conversation_id=payload.subject,  # Используем subject как conversation_id
+		message_id=payload.requestId,  # Используем requestId как message_id
+		status=status_map.get(payload.status.upper(), MessageStatus.sent),
+		occurred_at=payload.statusAt,  # Используем реальное время из webhook
 	)

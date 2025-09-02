@@ -16,8 +16,8 @@ class UpdateMessageStatusUseCase:
 
 	async def execute(self, payload: EdnaStatusUpdate) -> None:
 		status_update = edna_status_to_domain(payload)
-		# Находим связанное сообщение в amoCRM
-		link = await self._msg_links.get_link_by_source_id(status_update.message_id)
+		# Находим связанное сообщение в amoCRM по requestId (который мы использовали как source_message_id при отправке)
+		link = await self._msg_links.get_link_by_source_id(payload.requestId)
 		if link and link.target_provider == ProviderName.amocrm:
 			# Обогащаем событие информацией о чате и сообщении в amoCRM
 			status_update_for_amocrm = MessageStatusUpdate(

@@ -8,7 +8,6 @@ services:
       - EDNA_API_KEY=a564b2c3-1d3f-43e9-bc00-22a7d9580216
       - EDNA_BASE_URL=https://app.edna.ru
       - EDNA_IM_TYPE=whatsapp
-      - EDNA_SEND_PATH=/api/messages/send
       - EDNA_STATUS_CALLBACK_URL=https://amo-edna.24tema.ru/webhooks/edna
       - EDNA_IN_MESSAGE_CALLBACK_URL=https://amo-edna.24tema.ru/webhooks/edna
       - EDNA_MESSAGE_MATCHER_CALLBACK_URL=https://amo-edna.24tema.ru/webhooks/edna

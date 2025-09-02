@@ -285,6 +285,7 @@ class EdnaHttpClient(MessageProvider, StatusNotifier):
 
 		try:
 			self._logger.info("Выполнение HTTP запроса к Edna API: %s%s", self._base_url, self._send_path)
+			self._logger.info("Отправляемый payload в Edna: %s", json.dumps(payload, ensure_ascii=False))
 			response = await self._client.post(self._send_path, json=payload)
 
 			self._logger.info(
@@ -336,6 +337,10 @@ class EdnaHttpClient(MessageProvider, StatusNotifier):
 				"HTTP ошибка при отправке в Edna: status=%s, response=%s",
 				e.response.status_code,
 				e.response.text
+			)
+			self._logger.error(
+				"Детальный ответ Edna API при ошибке: %s",
+				json.dumps({"status_code": e.response.status_code, "response_body": e.response.text}, ensure_ascii=False)
 			)
 
 			# Создаем детальный отчет об ошибке API

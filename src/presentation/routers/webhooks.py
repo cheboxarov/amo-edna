@@ -68,7 +68,7 @@ class Container:
 			logger=logger,
 		)
 		self.update_status_uc = UpdateMessageStatusUseCase(
-			amocrm_notifier=self.amocrm_client, msg_links=self.msg_link_repo
+			amocrm_notifier=self.amocrm_client, msg_links=self.msg_link_repo, logger=logger
 		)
 
 

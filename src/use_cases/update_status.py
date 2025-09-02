@@ -1,3 +1,4 @@
+import logging
 from domain.models import MessageStatusUpdate, ProviderName, MessageStatus
 from domain.ports.message_provider import StatusNotifier
 from presentation.schemas.edna import EdnaStatusUpdate
@@ -10,9 +11,11 @@ class UpdateMessageStatusUseCase:
 		self,
 		amocrm_notifier: StatusNotifier,
 		msg_links: MessageLinkRepository,
+		logger: logging.Logger | None = None,
 	) -> None:
 		self._amocrm_notifier = amocrm_notifier
 		self._msg_links = msg_links
+		self._logger = logger or logging.getLogger(__name__)
 
 	async def execute(self, payload: EdnaStatusUpdate) -> None:
 		self._logger.info(

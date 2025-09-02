@@ -16,11 +16,13 @@ from core.error_logger import get_error_reporter
 
 
 class EdnaHttpClient(MessageProvider, StatusNotifier):
+	SEND_PATH = "/api/cascade/schedule"
+	CALLBACK_PATH = "/api/callback/set"
+
 	def __init__(self, settings: EdnaSettings):
 		self._logger = logging.getLogger("edna")
 		self._api_key = settings.api_key
 		self._base_url = settings.base_url.rstrip("/")
-		self._send_path = "/api/cascade/schedule"
 		self._callback_path = settings.callback_path
 		self._im_type = settings.im_type
 		self._subject_id = settings.subject_id
@@ -53,7 +55,6 @@ class EdnaHttpClient(MessageProvider, StatusNotifier):
 			channels = response.json()
 			self._logger.info(f"Получено {len(channels)} каналов edna: {channels}")
 
-			# Логируем информацию о каналах
 			for channel in channels:
 				self._logger.debug(
 					"Канал: id=%s, name='%s', subjectId=%s, type=%s, active=%s, registrationStatus=%s",
@@ -70,7 +71,7 @@ class EdnaHttpClient(MessageProvider, StatusNotifier):
 		except Exception as e:
 			self._logger.error("Не удалось получить список каналов edna: %s", str(e))
 
-			# Логируем ошибку в error_reporter
+
 			try:
 				error_reporter = get_error_reporter()
 				error_reporter.log_api_error(
@@ -82,7 +83,7 @@ class EdnaHttpClient(MessageProvider, StatusNotifier):
 			except Exception as report_error:
 				self._logger.error("Не удалось создать отчет об ошибке получения каналов: %s", str(report_error))
 
-			# Возвращаем пустой список, чтобы не прерывать инициализацию
+
 			return []
 
 	def _validate_callback_url(self, url: str) -> bool:
@@ -98,9 +99,7 @@ class EdnaHttpClient(MessageProvider, StatusNotifier):
 		return True
 
 	async def ensure_ready(self) -> None:
-		# Если заданы callback URL, получаем каналы и устанавливаем коллбеки для всех каналов
 		if self._status_cb or self._in_msg_cb or self._matcher_cb:
-			# Валидируем URL
 			valid_urls = []
 			if self._status_cb and self._validate_callback_url(self._status_cb):
 				valid_urls.append(("status", self._status_cb))
@@ -112,8 +111,6 @@ class EdnaHttpClient(MessageProvider, StatusNotifier):
 			if not valid_urls:
 				self._logger.warning("Все callback URL невалидны или не заданы, пропускаем настройку коллбеков")
 				return
-
-			# Получаем список каналов для диагностики
 			try:
 				channels = await self.get_channels()
 				if channels:
@@ -138,7 +135,7 @@ class EdnaHttpClient(MessageProvider, StatusNotifier):
 					error_reporter.log_api_error(
 						error=e,
 						service_name="Edna",
-						endpoint=self._callback_path,
+						endpoint=self.CALLBACK_PATH,
 						request_data={
 							"statusCallbackUrl": self._status_cb,
 							"inMessageCallbackUrl": self._in_msg_cb,
@@ -153,25 +150,15 @@ class EdnaHttpClient(MessageProvider, StatusNotifier):
 			raise ValueError("EDNA cascade_id is required for cascade scheduling")
 
 		request_id = message.source_message_id or message.id
-
-		# Приоритет выбора адреса для subscriberFilter:
-		# 1. Если это телефон (начинается с цифр) - используем его
-		# 2. target_conversation_id (если есть связь)
-		# 3. recipient.provider_user_id
-		# 4. source_conversation_id (как fallback)
-
 		address = ""
 
-		# Проверяем, является ли recipient.provider_user_id номером телефона
 		if message.recipient.provider_user_id and message.recipient.provider_user_id.isdigit():
 			address = message.recipient.provider_user_id
 			self._logger.info("Используем номер телефона из recipient: %s", address)
-		# Если есть target_conversation_id и он выглядит как телефон
 		elif message.target_conversation_id and message.target_conversation_id.isdigit():
 			address = message.target_conversation_id
 			self._logger.info("Используем номер телефона из target_conversation_id: %s", address)
 		else:
-			# Fallback на другие варианты
 			address = (
 				message.target_conversation_id
 				or message.recipient.provider_user_id
@@ -248,7 +235,7 @@ class EdnaHttpClient(MessageProvider, StatusNotifier):
 		if matcher_url:
 			body["messageMatcherCallbackUrl"] = matcher_url
 		self._logger.info("Setting edna callbacks subject_id=%s", subject_id)
-		resp = await self._client.post(self._callback_path, json=body)
+		resp = await self._client.post(self.CALLBACK_PATH, json=body)
 		self._logger.debug("Edna callback set response %s %s", resp.status_code, resp.text)
 		resp.raise_for_status()
 
@@ -272,11 +259,10 @@ class EdnaHttpClient(MessageProvider, StatusNotifier):
 			return
 
 		self._logger.info("Установка коллбеков для всех каналов (глобально)")
-		resp = await self._client.post(self._callback_path, json=body)
+		resp = await self._client.post(self.CALLBACK_PATH, json=body)
 		self._logger.debug("Edna global callback set response %s %s", resp.status_code, resp.text)
 		resp.raise_for_status()
 
-		# Логируем успешную настройку
 		enabled_callbacks = []
 		if status_url:
 			enabled_callbacks.append("status")
@@ -315,9 +301,9 @@ class EdnaHttpClient(MessageProvider, StatusNotifier):
 		self._logger.debug("Полный payload для Edna Cascade Schedule: %s", json.dumps(payload, indent=2, ensure_ascii=False))
 
 		try:
-			self._logger.info("Выполнение HTTP запроса к Edna API: %s%s", self._base_url, self._send_path)
+			self._logger.info("Выполнение HTTP запроса к Edna API: %s%s", self._base_url, self.SEND_PATH)
 			self._logger.info("Отправляемый payload в Edna: %s", json.dumps(payload, ensure_ascii=False))
-			response = await self._client.post(self._send_path, json=payload)
+			response = await self._client.post(self.SEND_PATH, json=payload)
 
 			self._logger.info(
 				"Получен ответ от Edna API: status=%s, content_length=%s bytes",
@@ -374,20 +360,20 @@ class EdnaHttpClient(MessageProvider, StatusNotifier):
 				json.dumps({"status_code": e.response.status_code, "response_body": e.response.text}, ensure_ascii=False)
 			)
 
-			# Специальная обработка для ошибок формата адреса
+
 			if e.response.status_code == 400 and "error-address-format" in e.response.text:
 				self._logger.error(
 					"Edna сообщает об ошибке формата адреса. Возможно, нужно использовать другой тип идентификатора или получить номер телефона через AmoCRM API. "
 					"Текущий type: %s. Проверьте переменную EDNA_SUBSCRIBER_ID_TYPE", self._subscriber_id_type
 				)
 
-			# Создаем детальный отчет об ошибке API
+
 			try:
 				error_reporter = get_error_reporter()
 				error_reporter.log_api_error(
 					error=e,
 					service_name="Edna",
-					endpoint=self._send_path,
+					endpoint=self.SEND_PATH,
 					request_data=payload,
 					response_data={"status_code": e.response.status_code, "response": e.response.text},
 					status_code=e.response.status_code
@@ -399,13 +385,13 @@ class EdnaHttpClient(MessageProvider, StatusNotifier):
 		except Exception as e:
 			self._logger.exception("Неожиданная ошибка при отправке в Edna: %s", str(e))
 
-			# Создаем детальный отчет об ошибке
+
 			try:
 				error_reporter = get_error_reporter()
 				error_reporter.log_api_error(
 					error=e,
 					service_name="Edna",
-					endpoint=self._send_path,
+					endpoint=self.SEND_PATH,
 					request_data=payload
 				)
 			except Exception as report_error:

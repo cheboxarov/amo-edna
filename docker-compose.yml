@@ -11,6 +11,7 @@ services:
       - EDNA_STATUS_CALLBACK_URL=https://amo-edna.24tema.ru/webhooks/edna
       - EDNA_IN_MESSAGE_CALLBACK_URL=https://amo-edna.24tema.ru/webhooks/edna
       - EDNA_MESSAGE_MATCHER_CALLBACK_URL=https://amo-edna.24tema.ru/webhooks/edna
+      - EDNA_CASCADE_ID=4567
 
       - AMOCRM_AMOJO_BASE_URL=https://amojo.amocrm.ru
       - AMOCRM_CHANNEL_ID=09747b7f-c6d3-4ee3-bfc3-a0db8550c34d

@@ -20,7 +20,7 @@ class EdnaHttpClient(MessageProvider, StatusNotifier):
 		self._logger = logging.getLogger("edna")
 		self._api_key = settings.api_key
 		self._base_url = settings.base_url.rstrip("/")
-		self._send_path = settings.send_path
+		self._send_path = "/api/cascade/schedule"
 		self._callback_path = settings.callback_path
 		self._im_type = settings.im_type
 		self._subject_id = settings.subject_id

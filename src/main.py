@@ -10,7 +10,7 @@ from presentation.middleware.logging import log_request_body_middleware
 import uvicorn
 
 # Создаем директорию для логов
-logs_dir = Path("logs")
+logs_dir = Path("/app/logs")
 logs_dir.mkdir(exist_ok=True)
 
 # Настраиваем базовое логирование

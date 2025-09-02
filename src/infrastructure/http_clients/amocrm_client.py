@@ -219,49 +219,61 @@ class AmoCrmHttpClient(MessageProvider, StatusNotifier):
 		}
 		await self._post(path, payload)
 
-	async def notify_delivery_error(self, message_id: str, error_code: int = 903, error_text: str = "") -> None:
-		"""Отправляет статус ошибки доставки для сообщения в AmoCRM"""
+	async def update_message_status(self, message_id: str, status: int, error_code: int = 0, error_text: str = "") -> None:
+		"""Обновляет статус доставки сообщения в AmoCRM"""
 		await self._ensure_scope_id()
 
-		if not error_text:
-			error_messages = {
-				901: "Пользователь удалил чат",
-				902: "Интеграция отключена на стороне канала",
-				903: "Внутренняя ошибка сервера",
-				904: "Невозможно создать чат",
-				905: "Произошла неизвестная ошибка",
-			}
-			error_text = error_messages.get(error_code, "Произошла ошибка при отправке сообщения")
+		if status not in [1, 2, -1]:
+			self._logger.error("Неверный статус доставки: %d. Допустимые значения: 1 (доставлено), 2 (прочитано), -1 (ошибка)", status)
+			return
 
 		path = f"/v2/origin/custom/{self._scope_id}/{message_id}/delivery_status"
 		payload = {
 			"msgid": message_id,
-			"delivery_status": -1,  # Статус ошибки
-			"error_code": error_code,
-			"error": error_text,
+			"delivery_status": status,
 		}
 
+		# Добавляем код ошибки только для статусов ошибок
+		if status == -1:
+			if not error_text:
+				error_messages = {
+					901: "Пользователь удалил чат",
+					902: "Интеграция отключена на стороне канала",
+					903: "Внутренняя ошибка сервера",
+					904: "Невозможно создать чат",
+					905: "Произошла неизвестная ошибка",
+				}
+				error_text = error_messages.get(error_code, "Произошла ошибка при отправке сообщения")
+
+			payload["error_code"] = error_code
+			payload["error"] = error_text
+
 		try:
+			status_text = {1: "доставлено", 2: "прочитано", -1: "ошибка"}.get(status, "неизвестно")
 			self._logger.info(
-				"Отправка статуса ошибки доставки в AmoCRM: message_id=%s, error_code=%s, error_text=%s",
-				message_id, error_code, error_text
+				"Обновление статуса сообщения в AmoCRM: message_id=%s, status=%s (%d)",
+				message_id, status_text, status
 			)
 			await self._post(path, payload)
-			self._logger.info("Статус ошибки доставки успешно отправлен в AmoCRM")
+			self._logger.info("Статус сообщения успешно обновлен в AmoCRM")
 		except Exception as e:
 			self._logger.error(
-				"Не удалось отправить статус ошибки доставки в AmoCRM: message_id=%s, error=%s",
+				"Не удалось обновить статус сообщения в AmoCRM: message_id=%s, error=%s",
 				message_id, str(e)
 			)
 
-			# Создаем детальный отчет об ошибке отправки статуса доставки
+			# Создаем детальный отчет об ошибке
 			try:
 				error_reporter = get_error_reporter()
 				error_reporter.log_delivery_status_error(
 					error=e,
 					provider="amocrm",
 					message_id=message_id,
-					error_details=f"Failed to send delivery error status. Original error: {error_text}"
+					error_details=f"Failed to update message status to {status}"
 				)
 			except Exception as report_error:
-				self._logger.error("Не удалось создать отчет об ошибке статуса доставки: %s", str(report_error))
+				self._logger.error("Не удалось создать отчет об ошибке обновления статуса: %s", str(report_error))
+
+	async def notify_delivery_error(self, message_id: str, error_code: int = 903, error_text: str = "") -> None:
+		"""Отправляет статус ошибки доставки для сообщения в AmoCRM"""
+		await self.update_message_status(message_id, -1, error_code, error_text)

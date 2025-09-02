@@ -26,7 +26,7 @@ def amocrm_to_domain(payload: AmoIncomingWebhook) -> Message:
 	if payload.message.message.media:
 		attachment = Attachment(
 			url=payload.message.message.media,
-			mime_type=None,  # В новых данных нет mime_type
+			mime_type=None,
 			filename=payload.message.message.file_name,
 			size_bytes=payload.message.message.file_size,
 		)
@@ -37,19 +37,7 @@ def amocrm_to_domain(payload: AmoIncomingWebhook) -> Message:
 		display_name=payload.message.sender.name,
 	)
 
-	# Получатель - это клиент из receiver
-	# В AmoCRM webhook номер телефона находится в receiver.client_id
 	recipient_provider_id = payload.message.receiver.client_id
-
-	# Проверяем, является ли это номером телефона (только цифры)
-	if recipient_provider_id and recipient_provider_id.isdigit():
-		# Это номер телефона, используем его напрямую
-		pass  # recipient_provider_id уже содержит номер телефона
-	else:
-		# Это не номер телефона, возможно ID клиента
-		# В будущем можно добавить логику получения телефона через AmoCRM API
-		pass
-
 	recipient = Participant(
 		provider_user_id=recipient_provider_id,
 		role=ParticipantRole.client,
@@ -58,7 +46,7 @@ def amocrm_to_domain(payload: AmoIncomingWebhook) -> Message:
 
 	return Message(
 		id=str(uuid4()),
-		direction=MessageDirection.outbound,  # Исходящее из amoCRM к клиенту
+		direction=MessageDirection.outbound,
 		content_type=content_type,
 		text=payload.message.message.text,
 		attachment=attachment,

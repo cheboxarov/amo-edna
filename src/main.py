@@ -15,17 +15,23 @@ logs_dir = Path("/app/logs")
 logs_dir.mkdir(exist_ok=True)
 
 # Настраиваем базовое логирование
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)  # Консоль показывает INFO+
+
+file_handler = logging.handlers.RotatingFileHandler(
+    logs_dir / "app.log",
+    maxBytes=10*1024*1024,  # 10MB
+    backupCount=5,
+    encoding='utf-8'
+)
+file_handler.setLevel(logging.WARNING)  # Файлы пишут только WARNING+
+
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,  # Корневой уровень DEBUG для всех логгеров
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     handlers=[
-        logging.StreamHandler(),  # Логи в консоль
-        logging.handlers.RotatingFileHandler(
-            logs_dir / "app.log",
-            maxBytes=10*1024*1024,  # 10MB
-            backupCount=5,
-            encoding='utf-8'
-        )
+        console_handler,
+        file_handler
     ]
 )
 

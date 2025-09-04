@@ -18,7 +18,7 @@ class UpdateMessageStatusUseCase:
 		self._logger = logger or logging.getLogger(__name__)
 
 	async def execute(self, payload: EdnaStatusUpdate) -> None:
-		self._logger.info(
+		self._logger.debug(
 			"Получен статус от Edna: requestId=%s, messageId=%s, status=%s, subject=%s",
 			payload.requestId, payload.messageId, payload.status, payload.subject
 		)
@@ -55,7 +55,7 @@ class UpdateMessageStatusUseCase:
 			)
 
 			if amocrm_status:
-				self._logger.info(
+				self._logger.debug(
 					"Обновление статуса сообщения в AmoCRM: edna_status=%s, amocrm_status=%d, message_id=%s",
 					payload.status, amocrm_status, amocrm_message_id
 				)
@@ -70,7 +70,7 @@ class UpdateMessageStatusUseCase:
 					self._logger.error("❌ Ошибка при обновлении статуса в AmoCRM: %s", str(e))
 					# Можно добавить дополнительную обработку ошибки здесь
 			else:
-				self._logger.info(
+				self._logger.debug(
 					"Статус %s от Edna не требует обновления в AmoCRM",
 					payload.status
 				)

@@ -53,8 +53,8 @@ class InMemoryMessageLinkRepository:
 		return link
 
 	async def save_link(self, link: MessageLink) -> None:
-		self._logger.info(
-			"💾 Сохраняем связь: source_provider=%s, source_id=%s -> target_provider=%s, target_id=%s",
+		self._logger.debug(
+			"Сохраняем связь: source_provider=%s, source_id=%s -> target_provider=%s, target_id=%s",
 			link.source_provider, link.source_message_id, link.target_provider, link.target_message_id
 		)
 		self._links[link.source_message_id] = link

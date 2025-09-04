@@ -99,7 +99,7 @@ class AmoCrmHttpClient(MessageProvider, StatusNotifier):
 			"title": self._connect_title,
 			"hook_api_version": self._hook_api_version,
 		}
-		self._logger.info(
+		self._logger.debug(
 			"Connecting to amojo: base_url=%s path=%s channel_id=%s account_id=%s title=%s hook_api_version=%s",
 			self._amojo_base_url,
 			path,
@@ -250,7 +250,7 @@ class AmoCrmHttpClient(MessageProvider, StatusNotifier):
 
 		try:
 			status_text = {1: "доставлено", 2: "прочитано", -1: "ошибка"}.get(status, "неизвестно")
-			self._logger.info(
+			self._logger.debug(
 				"Обновление статуса сообщения в AmoCRM: message_id=%s, status=%s (%d)",
 				message_id, status_text, status
 			)

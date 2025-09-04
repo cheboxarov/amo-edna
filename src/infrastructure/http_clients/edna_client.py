@@ -47,13 +47,13 @@ class EdnaHttpClient(MessageProvider, StatusNotifier):
 
 		try:
 			params = {"types": types}
-			self._logger.info("Получение списка каналов edna: types=%s", types)
+			self._logger.debug("Получение списка каналов edna: types=%s", types)
 
 			response = await self._client.get("/api/channel-profile", params=params)
 			response.raise_for_status()
 
 			channels = response.json()
-			self._logger.info(f"Получено {len(channels)} каналов edna: {channels}")
+			self._logger.debug(f"Получено {len(channels)} каналов edna: {channels}")
 
 			for channel in channels:
 				self._logger.debug(
@@ -115,7 +115,7 @@ class EdnaHttpClient(MessageProvider, StatusNotifier):
 				channels = await self.get_channels()
 				if channels:
 					active_channels = [c for c in channels if c.get("active")]
-					self._logger.info("Найдено %d активных каналов из %d", len(active_channels), len(channels))
+					self._logger.debug("Найдено %d активных каналов из %d", len(active_channels), len(channels))
 				else:
 					self._logger.warning("Не удалось получить список каналов, но продолжаем настройку коллбеков")
 			except Exception as e:
@@ -154,10 +154,10 @@ class EdnaHttpClient(MessageProvider, StatusNotifier):
 
 		if message.recipient.provider_user_id and message.recipient.provider_user_id.isdigit():
 			address = message.recipient.provider_user_id
-			self._logger.info("Используем номер телефона из recipient: %s", address)
+			self._logger.debug("Используем номер телефона из recipient: %s", address)
 		elif message.target_conversation_id and message.target_conversation_id.isdigit():
 			address = message.target_conversation_id
-			self._logger.info("Используем номер телефона из target_conversation_id: %s", address)
+			self._logger.debug("Используем номер телефона из target_conversation_id: %s", address)
 		else:
 			address = (
 				message.target_conversation_id
@@ -175,7 +175,7 @@ class EdnaHttpClient(MessageProvider, StatusNotifier):
 		if not address:
 			raise ValueError("Address for subscriberFilter is empty")
 
-		self._logger.info(
+		self._logger.debug(
 			"Подготовка subscriberFilter: address=%s, type=%s",
 			address, self._subscriber_id_type
 		)
@@ -234,7 +234,7 @@ class EdnaHttpClient(MessageProvider, StatusNotifier):
 			body["inMessageCallbackUrl"] = in_message_url
 		if matcher_url:
 			body["messageMatcherCallbackUrl"] = matcher_url
-		self._logger.info("Setting edna callbacks subject_id=%s", subject_id)
+		self._logger.debug("Setting edna callbacks subject_id=%s", subject_id)
 		resp = await self._client.post(self.CALLBACK_PATH, json=body)
 		self._logger.debug("Edna callback set response %s %s", resp.status_code, resp.text)
 		resp.raise_for_status()
@@ -258,7 +258,7 @@ class EdnaHttpClient(MessageProvider, StatusNotifier):
 			self._logger.warning("Не указаны URL для коллбеков, пропускаем настройку")
 			return
 
-		self._logger.info("Установка коллбеков для всех каналов (глобально)")
+		self._logger.debug("Установка коллбеков для всех каналов (глобально)")
 		resp = await self._client.post(self.CALLBACK_PATH, json=body)
 		self._logger.debug("Edna global callback set response %s %s", resp.status_code, resp.text)
 		resp.raise_for_status()
@@ -275,7 +275,7 @@ class EdnaHttpClient(MessageProvider, StatusNotifier):
 	async def send_message(self, message: Message) -> SentMessageResult:
 		payload = self._build_payload(message)
 
-		self._logger.info(
+		self._logger.debug(
 			"Отправка сообщения в Edna: conversation_id=%s, recipient=%s, has_text=%s, has_attachment=%s",
 			message.target_conversation_id,
 			message.recipient.display_name,
@@ -284,13 +284,13 @@ class EdnaHttpClient(MessageProvider, StatusNotifier):
 		)
 
 		if message.text:
-			self._logger.info(
+			self._logger.debug(
 				"Текст сообщения: '%s'",
 				message.text[:200] + "..." if len(message.text) > 200 else message.text
 			)
 
 		if message.attachment:
-			self._logger.info(
+			self._logger.debug(
 				"Вложение: filename=%s, size=%s bytes, mime_type=%s, url=%s",
 				message.attachment.filename,
 				message.attachment.size_bytes,
@@ -301,11 +301,11 @@ class EdnaHttpClient(MessageProvider, StatusNotifier):
 		self._logger.debug("Полный payload для Edna Cascade Schedule: %s", json.dumps(payload, indent=2, ensure_ascii=False))
 
 		try:
-			self._logger.info("Выполнение HTTP запроса к Edna API: %s%s", self._base_url, self.SEND_PATH)
-			self._logger.info("Отправляемый payload в Edna: %s", json.dumps(payload, ensure_ascii=False))
+			self._logger.debug("Выполнение HTTP запроса к Edna API: %s%s", self._base_url, self.SEND_PATH)
+			self._logger.debug("Отправляемый payload в Edna: %s", json.dumps(payload, ensure_ascii=False))
 			response = await self._client.post(self.SEND_PATH, json=payload)
 
-			self._logger.info(
+			self._logger.debug(
 				"Получен ответ от Edna API: status=%s, content_length=%s bytes",
 				response.status_code,
 				len(response.content) if response.content else 0

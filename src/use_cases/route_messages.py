@@ -37,7 +37,7 @@ class RouteMessageFromEdnaUseCase:
 		self._logger = logger or logging.getLogger(__name__)
 
 	async def execute(self, payload: EdnaIncomingMessage) -> None:
-		self._logger.info("Routing message from Edna, payload=%s", payload.model_dump_json())
+		self._logger.debug("Routing message from Edna, payload=%s", payload.model_dump_json())
 		message = edna_message_to_domain(payload)
 		self._logger.debug("Mapped Edna message to domain model: %s", message.model_dump_json())
 
@@ -53,7 +53,7 @@ class RouteMessageFromEdnaUseCase:
 			# Используем ID из Edna как временный ID для создания чата в AmoCRM
 			message.target_conversation_id = message.source_conversation_id
 		else:
-			self._logger.info(
+			self._logger.debug(
 				"Found linked AmoCRM chat_id=%s for Edna conversation_id=%s",
 				target_conversation_id,
 				message.source_conversation_id,
@@ -62,7 +62,7 @@ class RouteMessageFromEdnaUseCase:
 
 		try:
 			result = await self._amocrm_provider.send_message(message)
-			self._logger.info(
+			self._logger.debug(
 				"Message sent to AmoCRM, result: %s", result.model_dump_json()
 			)
 
@@ -73,7 +73,7 @@ class RouteMessageFromEdnaUseCase:
 					amocrm_chat_id=result.reference.conversation_id,
 				)
 				await self._conv_links.save_link(new_link)
-				self._logger.info("Saved new conversation link: %s", new_link.model_dump_json())
+				self._logger.debug("Saved new conversation link: %s", new_link.model_dump_json())
 
 			# Сохраняем связь ID сообщений
 			msg_link = MessageLink(
@@ -84,7 +84,7 @@ class RouteMessageFromEdnaUseCase:
 				target_conversation_id=result.reference.conversation_id,
 			)
 			await self._msg_links.save_link(msg_link)
-			self._logger.info("Saved message link: %s", msg_link.model_dump_json())
+			self._logger.debug("Saved message link: %s", msg_link.model_dump_json())
 
 		except Exception:
 			self._logger.exception(
@@ -112,14 +112,14 @@ class RouteMessageFromAmoCrmUseCase:
 		# Сохраняем ID сообщения из AmoCRM для отправки статуса ошибки
 		amocrm_message_id = payload.message.message.id
 
-		self._logger.info(
+		self._logger.debug(
 			"Начата обработка сообщения из AmoCRM, account_id=%s, time=%s, message_id=%s",
 			payload.account_id, payload.time, amocrm_message_id
 		)
 
 		try:
 			message = amocrm_to_domain(payload)
-			self._logger.info(
+			self._logger.debug(
 				"Сообщение преобразовано в доменную модель: id=%s, sender=%s, recipient=%s, conversation_id=%s",
 				message.id, message.sender.display_name, message.recipient.display_name, message.source_conversation_id
 			)
@@ -136,7 +136,7 @@ class RouteMessageFromAmoCrmUseCase:
 				)
 				message.target_conversation_id = message.source_conversation_id
 			else:
-				self._logger.info(
+				self._logger.debug(
 					"Найдена связь: AmoCRM conversation_id=%s -> Edna conversation_id=%s",
 					message.source_conversation_id, target_conversation_id
 				)
@@ -146,7 +146,7 @@ class RouteMessageFromAmoCrmUseCase:
 				saved_phone = await self._conv_links.get_phone_by_chat_id(message.source_conversation_id)
 				if saved_phone:
 					message.recipient.provider_user_id = saved_phone
-					self._logger.info(
+					self._logger.debug(
 						"Используем сохраненный номер телефона: %s для чата %s",
 						saved_phone, message.source_conversation_id
 					)
@@ -157,7 +157,7 @@ class RouteMessageFromAmoCrmUseCase:
 						message.source_conversation_id
 					)
 
-			self._logger.info(
+			self._logger.debug(
 				"Отправка сообщения в Edna: conversation_id=%s, sender=%s, text='%s'",
 				message.target_conversation_id, message.sender.display_name, message.text[:100] + "..." if message.text and len(message.text) > 100 else message.text
 			)
@@ -179,15 +179,15 @@ class RouteMessageFromAmoCrmUseCase:
 				target_conversation_id=result.reference.conversation_id,
 			)
 
-			self._logger.info(
-				"📝 Сохраняем связь сообщений: source_provider=%s, source_message_id=%s -> target_provider=%s, target_message_id=%s, target_conversation_id=%s",
+			self._logger.debug(
+				"Сохраняем связь сообщений: source_provider=%s, source_message_id=%s -> target_provider=%s, target_message_id=%s, target_conversation_id=%s",
 				message.source_provider, message.source_message_id,
 				result.reference.provider, result.reference.message_id, result.reference.conversation_id
 			)
 
 			await self._msg_links.save_link(link)
-			self._logger.info(
-				"✅ Связь сообщений сохранена: source_id=%s -> target_id=%s",
+			self._logger.debug(
+				"Связь сообщений сохранена: source_id=%s -> target_id=%s",
 				message.source_message_id, result.reference.message_id
 			)
 
@@ -198,7 +198,7 @@ class RouteMessageFromAmoCrmUseCase:
 					amocrm_chat_id=message.source_conversation_id,
 				)
 				await self._conv_links.save_link(new_conv_link)
-				self._logger.info(
+				self._logger.debug(
 					"Сохранена новая связь разговоров: AmoCRM=%s -> Edna=%s",
 					message.source_conversation_id, result.reference.conversation_id
 				)
@@ -210,7 +210,7 @@ class RouteMessageFromAmoCrmUseCase:
 						message.source_conversation_id,
 						message.recipient.provider_user_id
 					)
-					self._logger.info(
+					self._logger.debug(
 						"Сохранен номер телефона для чата: AmoCRM_chat_id=%s -> phone=%s",
 						message.source_conversation_id, message.recipient.provider_user_id
 					)

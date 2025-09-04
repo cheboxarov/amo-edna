@@ -8,6 +8,7 @@ from use_cases import (
 	RouteMessageFromAmoCrmUseCase,
 	RouteMessageFromEdnaUseCase,
 	UpdateMessageStatusUseCase,
+	CreateChatUseCase,
 )
 from infrastructure.http_clients.amocrm_client import AmoCrmHttpClient
 from infrastructure.http_clients.edna_client import EdnaHttpClient
@@ -32,6 +33,7 @@ from use_cases import (
 	RouteMessageFromAmoCrmUseCase,
 	RouteMessageFromEdnaUseCase,
 	UpdateMessageStatusUseCase,
+	CreateChatUseCase,
 )
 from infrastructure.http_clients.amocrm_client import AmoCrmHttpClient
 from infrastructure.http_clients.edna_client import EdnaHttpClient
@@ -54,10 +56,17 @@ class Container:
 		self.msg_link_repo = InMemoryMessageLinkRepository()
 		self.edna_client = EdnaHttpClient(settings=settings.edna)
 		self.amocrm_client = AmoCrmHttpClient(settings=settings.amocrm)
+		self.create_chat_uc = CreateChatUseCase(
+			amocrm_provider=self.amocrm_client,
+			conv_links=self.conv_link_repo,
+			amocrm_settings=settings.amocrm,
+			logger=logger,
+		)
 		self.route_from_edna_uc = RouteMessageFromEdnaUseCase(
 			amocrm_provider=self.amocrm_client,
 			conv_links=self.conv_link_repo,
 			msg_links=self.msg_link_repo,
+			create_chat_usecase=self.create_chat_uc if settings.amocrm.auto_create_chats else None,
 			logger=logger,
 		)
 		self.route_from_amocrm_uc = RouteMessageFromAmoCrmUseCase(

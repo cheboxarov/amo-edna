@@ -32,6 +32,10 @@ class AmoCrmSettings(BaseSettings):
 	connect_title: str = "Integration Channel"
 	hook_api_version: str = "v2"
 
+	# Настройки создания чатов
+	auto_create_chats: bool = True
+	default_chat_source_external_id: str = ""
+
 
 class Settings(BaseSettings):
 	edna: EdnaSettings = EdnaSettings()

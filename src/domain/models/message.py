@@ -91,3 +91,34 @@ class MessageLink(BaseModel):
 	target_provider: ProviderName
 	target_message_id: str
 	target_conversation_id: str
+
+
+class ChatSource(BaseModel):
+	external_id: str
+
+
+class ChatUserProfile(BaseModel):
+	phone: Optional[str] = None
+	email: Optional[str] = None
+
+
+class ChatUser(BaseModel):
+	id: str
+	ref_id: Optional[str] = None
+	name: str
+	avatar: Optional[str] = None
+	profile: Optional[ChatUserProfile] = None
+	profile_link: Optional[str] = None
+	client_id: Optional[str] = None
+
+
+class ChatCreationRequest(BaseModel):
+	conversation_id: str
+	source: Optional[ChatSource] = None
+	user: ChatUser
+
+
+class ChatCreationResult(BaseModel):
+	id: str
+	user: ChatUser
+	conversation_id: str

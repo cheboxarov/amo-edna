@@ -16,6 +16,10 @@ from domain.models import (
 	MessageStatusUpdate,
 	MessageContentType,
 	MessageStatus,
+	ChatCreationRequest,
+	ChatCreationResult,
+	ChatUser,
+	ChatUserProfile,
 )
 from domain.ports.message_provider import MessageProvider, StatusNotifier
 from core.config import AmoCrmSettings
@@ -273,6 +277,103 @@ class AmoCrmHttpClient(MessageProvider, StatusNotifier):
 				)
 			except Exception as report_error:
 				self._logger.error("Не удалось создать отчет об ошибке обновления статуса: %s", str(report_error))
+
+	async def create_chat(self, request: ChatCreationRequest) -> ChatCreationResult:
+		"""Создает новый чат в AmoCRM"""
+		await self._ensure_scope_id()
+		path = f"/v2/origin/custom/{self._scope_id}/chats"
+
+		# Формируем тело запроса
+		payload = {
+			"conversation_id": request.conversation_id,
+			"user": {
+				"id": request.user.id,
+				"name": request.user.name,
+			}
+		}
+
+		# Добавляем опциональные поля
+		if request.user.ref_id:
+			payload["user"]["ref_id"] = request.user.ref_id
+		if request.user.avatar:
+			payload["user"]["avatar"] = request.user.avatar
+		if request.user.profile_link:
+			payload["user"]["profile_link"] = request.user.profile_link
+
+		# Добавляем профиль пользователя
+		if request.user.profile:
+			payload["user"]["profile"] = {}
+			if request.user.profile.phone:
+				payload["user"]["profile"]["phone"] = request.user.profile.phone
+			if request.user.profile.email:
+				payload["user"]["profile"]["email"] = request.user.profile.email
+
+		# Добавляем источник чата
+		if request.source:
+			payload["source"] = {
+				"external_id": request.source.external_id
+			}
+
+		try:
+			self._logger.debug(
+				"Создание чата в AmoCRM: conversation_id=%s, user_id=%s, user_name=%s",
+				request.conversation_id,
+				request.user.id,
+				request.user.name
+			)
+
+			data = await self._post(path, payload)
+
+			result = ChatCreationResult(
+				id=data["id"],
+				user=ChatUser(
+					id=data["user"]["id"],
+					name=data["user"]["name"],
+					client_id=data["user"].get("client_id")
+				),
+				conversation_id=request.conversation_id
+			)
+
+			# Добавляем дополнительные поля из ответа, если они есть
+			if "avatar" in data["user"]:
+				result.user.avatar = data["user"]["avatar"]
+			if "phone" in data["user"]:
+				if not result.user.profile:
+					result.user.profile = ChatUserProfile()
+				result.user.profile.phone = data["user"]["phone"]
+			if "email" in data["user"]:
+				if not result.user.profile:
+					result.user.profile = ChatUserProfile()
+				result.user.profile.email = data["user"]["email"]
+
+			self._logger.info(
+				"Чат успешно создан в AmoCRM: chat_id=%s, user_id=%s, conversation_id=%s",
+				result.id,
+				result.user.id,
+				result.conversation_id
+			)
+
+			return result
+
+		except Exception as e:
+			self._logger.error(
+				"Ошибка при создании чата в AmoCRM: conversation_id=%s, error=%s",
+				request.conversation_id,
+				str(e)
+			)
+
+			try:
+				error_reporter = get_error_reporter()
+				error_reporter.log_api_error(
+					error=e,
+					service_name="AmoCRM",
+					endpoint=path,
+					request_data=payload
+				)
+			except Exception as report_error:
+				self._logger.error("Не удалось создать отчет об ошибке создания чата: %s", str(report_error))
+
+			raise
 
 	async def notify_delivery_error(self, message_id: str, error_code: int = 903, error_text: str = "") -> None:
 		"""Отправляет статус ошибки доставки для сообщения в AmoCRM"""

@@ -5,11 +5,13 @@ from .route_messages import (
 	MessageLinkRepository,
 )
 from .update_status import UpdateMessageStatusUseCase
+from .create_chat import CreateChatUseCase
 
 __all__ = [
 	"RouteMessageFromEdnaUseCase",
 	"RouteMessageFromAmoCrmUseCase",
 	"UpdateMessageStatusUseCase",
+	"CreateChatUseCase",
 	"ConversationLinkRepository",
 	"MessageLinkRepository",
 ]

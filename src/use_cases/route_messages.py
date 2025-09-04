@@ -8,12 +8,14 @@ from use_cases.mappers.edna_to_domain import edna_message_to_domain
 from presentation.schemas.amocrm import AmoIncomingWebhook
 from presentation.schemas.edna import EdnaIncomingMessage
 from core.error_logger import get_error_reporter
+from .create_chat import CreateChatUseCase
 
 
 class ConversationLinkRepository(Protocol):
 	async def get_edna_conversation_id(self, amocrm_chat_id: str) -> str | None: ...
 	async def get_amocrm_chat_id(self, edna_conversation_id: str) -> str | None: ...
 	async def get_phone_by_chat_id(self, amocrm_chat_id: str) -> str | None: ...
+	async def get_chat_id_by_phone(self, phone_number: str) -> str | None: ...
 	async def save_link(self, link: ConversationLink) -> None: ...
 	async def save_phone_for_chat(self, amocrm_chat_id: str, phone_number: str) -> None: ...
 
@@ -29,11 +31,13 @@ class RouteMessageFromEdnaUseCase:
 		amocrm_provider: MessageProvider,
 		conv_links: ConversationLinkRepository,
 		msg_links: MessageLinkRepository,
+		create_chat_usecase: Optional[CreateChatUseCase] = None,
 		logger: Optional[logging.Logger] = None,
 	) -> None:
 		self._amocrm_provider = amocrm_provider
 		self._conv_links = conv_links
 		self._msg_links = msg_links
+		self._create_chat_usecase = create_chat_usecase
 		self._logger = logger or logging.getLogger(__name__)
 
 	async def execute(self, payload: EdnaIncomingMessage) -> None:
@@ -41,39 +45,61 @@ class RouteMessageFromEdnaUseCase:
 		message = edna_message_to_domain(payload)
 		self._logger.debug("Mapped Edna message to domain model: %s", message.model_dump_json())
 
+		# Извлекаем номер телефона из сообщения Edna
+		phone_number = payload.subscriber.identifier
+		user_name = payload.userInfo.userName
+
 		target_conversation_id = await self._conv_links.get_amocrm_chat_id(
 			message.source_conversation_id
 		)
 
 		if not target_conversation_id:
 			self._logger.warning(
-				"No AmoCRM chat link found for Edna conversation_id=%s. Creating a new one.",
+				"No AmoCRM chat link found for Edna conversation_id=%s. Creating a new chat.",
 				message.source_conversation_id,
 			)
-			# Используем ID из Edna как временный ID для создания чата в AmoCRM
-			message.target_conversation_id = message.source_conversation_id
+
+			# Создаем чат в AmoCRM, если указан use case для создания чатов
+			if self._create_chat_usecase:
+				try:
+					chat_result = await self._create_chat_usecase.execute(
+						edna_conversation_id=message.source_conversation_id,
+						phone_number=phone_number,
+						user_name=user_name
+					)
+					target_conversation_id = chat_result.id
+					self._logger.info(
+						"Created new chat in AmoCRM: chat_id=%s for phone=%s",
+						target_conversation_id,
+						phone_number
+					)
+				except Exception as e:
+					self._logger.error(
+						"Failed to create chat in AmoCRM for phone=%s: %s",
+						phone_number,
+						str(e)
+					)
+					# Fallback: используем ID из Edna как временный
+					target_conversation_id = message.source_conversation_id
+			else:
+				self._logger.warning(
+					"No create chat use case provided, using Edna conversation_id as temporary chat_id"
+				)
+				target_conversation_id = message.source_conversation_id
 		else:
 			self._logger.debug(
 				"Found linked AmoCRM chat_id=%s for Edna conversation_id=%s",
 				target_conversation_id,
 				message.source_conversation_id,
 			)
-			message.target_conversation_id = target_conversation_id
+
+		message.target_conversation_id = target_conversation_id
 
 		try:
 			result = await self._amocrm_provider.send_message(message)
 			self._logger.debug(
 				"Message sent to AmoCRM, result: %s", result.model_dump_json()
 			)
-
-			# Если чат был новым, сохраняем связь
-			if not target_conversation_id:
-				new_link = ConversationLink(
-					edna_conversation_id=message.source_conversation_id,
-					amocrm_chat_id=result.reference.conversation_id,
-				)
-				await self._conv_links.save_link(new_link)
-				self._logger.debug("Saved new conversation link: %s", new_link.model_dump_json())
 
 			# Сохраняем связь ID сообщений
 			msg_link = MessageLink(

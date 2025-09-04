@@ -12,4 +12,9 @@ from .message import (
 	MessageStatusUpdate,
 	ConversationLink,
 	MessageLink,
+	ChatSource,
+	ChatUserProfile,
+	ChatUser,
+	ChatCreationRequest,
+	ChatCreationResult,
 )

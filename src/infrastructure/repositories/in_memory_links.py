@@ -22,6 +22,14 @@ class InMemoryConversationLinkRepository(ConversationLinkRepository):
 		"""Получить номер телефона по ID чата AmoCRM"""
 		return self._phones.get(amocrm_chat_id)
 
+	async def get_chat_id_by_phone(self, phone_number: str) -> str | None:
+		"""Получить ID чата AmoCRM по номеру телефона"""
+		# Ищем в обратном направлении: phone -> chat_id
+		for chat_id, phone in self._phones.items():
+			if phone == phone_number:
+				return chat_id
+		return None
+
 	async def save_link(self, link: ConversationLink) -> None:
 		self._links[link.amocrm_chat_id] = link.edna_conversation_id
 

@@ -116,6 +116,25 @@ class ErrorReporter:
         message = f"Delivery status error in {provider}"
         self.log_error(error, context, message)
 
+    def log_chat_creation_error(
+        self,
+        error: Exception,
+        phone_number: str,
+        conversation_id: str,
+        provider: str = "amocrm",
+        error_details: Optional[str] = None
+    ) -> None:
+        """Логирует ошибки создания чатов"""
+        context = {
+            "provider": provider,
+            "phone_number": phone_number,
+            "conversation_id": conversation_id,
+            "error_details": error_details
+        }
+
+        message = f"Chat creation error for phone {phone_number}"
+        self.log_error(error, context, message)
+
 
 # Глобальный экземпляр ErrorReporter (будет инициализирован в main.py)
 error_reporter: Optional[ErrorReporter] = None

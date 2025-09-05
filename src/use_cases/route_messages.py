@@ -9,6 +9,7 @@ from presentation.schemas.amocrm import AmoIncomingWebhook
 from presentation.schemas.edna import EdnaIncomingMessage
 from core.error_logger import get_error_reporter
 from .create_chat import CreateChatUseCase
+from infrastructure.http_clients.amocrm_rest_client import AmoCrmRestClient
 
 
 class ConversationLinkRepository(Protocol):
@@ -29,12 +30,14 @@ class RouteMessageFromEdnaUseCase:
 	def __init__(
 		self,
 		amocrm_provider: MessageProvider,
+		amocrm_rest: AmoCrmRestClient,
 		conv_links: ConversationLinkRepository,
 		msg_links: MessageLinkRepository,
 		create_chat_usecase: Optional[CreateChatUseCase] = None,
 		logger: Optional[logging.Logger] = None,
 	) -> None:
 		self._amocrm_provider = amocrm_provider
+		self._amocrm_rest = amocrm_rest
 		self._conv_links = conv_links
 		self._msg_links = msg_links
 		self._create_chat_usecase = create_chat_usecase
@@ -96,10 +99,60 @@ class RouteMessageFromEdnaUseCase:
 		message.target_conversation_id = target_conversation_id
 
 		try:
+			self._logger.info("Попытка найти контакт для чата id=%s", target_conversation_id)
+			contact_links = await self._amocrm_rest.get_contact_links(chats_id=[target_conversation_id])
+			contact_id = None
+			if contact_links["_total_items"] > 0:
+				contact_link = contact_links["_embedded"]["chats"][0]
+				contact_id = contact_link.get("contact_id")
+				self._logger.info("Найден контакт id=%s для чата id=%s", contact_id, target_conversation_id)
+			else:
+				self._logger.debug("No contacts bound to chat_id=%s", target_conversation_id)
+
+			# Отправляем сообщение в AmoCRM
 			result = await self._amocrm_provider.send_message(message)
 			self._logger.debug(
 				"Message sent to AmoCRM, result: %s", result.model_dump_json()
 			)
+
+			# Используем реальный conversation_id из ответа API для поиска контакта
+			actual_conversation_id = result.reference.conversation_id
+			self._logger.debug("Используем conversation_id из ответа API: %s", actual_conversation_id)
+
+			# Ищем контакт по реальному conversation_id
+			if not contact_id:
+				self._logger.info("Повторный поиск контакта по реальному conversation_id=%s", actual_conversation_id)
+				contact_links = await self._amocrm_rest.get_contact_links(chats_id=[actual_conversation_id])
+				if contact_links["_total_items"] > 0:
+					contact_link = contact_links["_embedded"]["chats"][0]
+					contact_id = contact_link.get("contact_id")
+					self._logger.info("Найден контакт id=%s для реального чата id=%s", contact_id, actual_conversation_id)
+
+			if contact_id:
+				# 2) Нормализовать номер (E.164 простая эвристика)
+				raw_phone = phone_number or ""
+				norm = raw_phone.strip().replace(" ", "").replace("-", "")
+				if norm.startswith("+"):
+					phone_e164 = norm
+				elif norm.startswith("8") and len(norm) == 11:
+					phone_e164 = "+7" + norm[1:]
+				elif norm.startswith("7") and len(norm) == 11:
+					phone_e164 = "+" + norm
+				else:
+					# Если начинается с 9 и длина 10 — считаем РФ
+					if len(norm) == 10 and norm.startswith("9"):
+						phone_e164 = "+7" + norm
+					else:
+						phone_e164 = "+" + norm if norm and not norm.startswith("+") else norm
+
+				self._logger.info("Нормализован номер телефона: '%s' -> '%s'", raw_phone, phone_e164)
+				# 3) Обновить телефон у контакта
+				await self._amocrm_rest.update_contact_phone(contact_id, phone_e164)
+			else:
+				self._logger.debug(
+					"Contact for chat_id=%s not found, skip phone update",
+					actual_conversation_id,
+				)
 
 			# Сохраняем связь ID сообщений
 			msg_link = MessageLink(
@@ -107,7 +160,7 @@ class RouteMessageFromEdnaUseCase:
 				source_message_id=message.source_message_id,
 				target_provider=result.reference.provider,
 				target_message_id=result.reference.message_id,
-				target_conversation_id=result.reference.conversation_id,
+				target_conversation_id=actual_conversation_id,
 			)
 			await self._msg_links.save_link(msg_link)
 			self._logger.debug("Saved message link: %s", msg_link.model_dump_json())

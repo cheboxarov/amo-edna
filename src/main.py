@@ -16,7 +16,7 @@ logs_dir.mkdir(exist_ok=True)
 
 # Настраиваем базовое логирование
 console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO)  # Консоль показывает INFO+
+console_handler.setLevel(logging.DEBUG)  # Консоль показывает DEBUG+
 
 file_handler = logging.handlers.RotatingFileHandler(
     logs_dir / "app.log",
@@ -90,6 +90,7 @@ error_logger.addHandler(json_error_handler)
 
 # Настраиваем уровни логирования для существующих логгеров
 logging.getLogger("amocrm.amojo").setLevel(logging.DEBUG)
+logging.getLogger("amocrm.rest").setLevel(logging.DEBUG)
 logging.getLogger("edna").setLevel(logging.DEBUG)
 logging.getLogger("amocrm_webhook").setLevel(logging.INFO)
 logging.getLogger("request_body_logger").setLevel(logging.INFO)

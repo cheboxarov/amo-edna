@@ -190,6 +190,14 @@ class AmoCrmHttpClient(MessageProvider, StatusNotifier):
 			)
 
 		data = await self._post(path, payload)
+
+		# Извлекаем conversation_id из ответа API
+		returned_conversation_id = (
+			data.get("new_message", {}).get("conversation_id")
+			or data.get("conversation_id")
+			or conversation_id  # fallback к исходному
+		)
+
 		returned_message_id = (
 			data.get("new_message", {}).get("msgid")
 			or data.get("message_id")
@@ -198,10 +206,16 @@ class AmoCrmHttpClient(MessageProvider, StatusNotifier):
 			or message.source_message_id
 			or ""
 		)
+
+		self._logger.debug(
+			"Extracted from AmoCRM API response: conversation_id=%s, message_id=%s",
+			returned_conversation_id, returned_message_id
+		)
+
 		return SentMessageResult(
 			reference=ProviderMessageRef(
 				provider=ProviderName.amocrm,
-				conversation_id=conversation_id,
+				conversation_id=returned_conversation_id,
 				message_id=returned_message_id or "unknown",
 			)
 		)

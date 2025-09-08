@@ -107,16 +107,17 @@ class RouteMessageFromEdnaUseCase:
 				"Message sent to AmoCRM, result: %s", result.model_dump_json()
 			)
 
-			# Используем conversation_id из ответа AmoCRM API для поиска контакта
-			amocrm_conversation_id = result.reference.conversation_id
-			self._logger.debug("Conversation_id из ответа AmoCRM: %s", amocrm_conversation_id)
+			# Используем ID созданного чата для поиска контакта, а не conversation_id из ответа на отправку сообщения
+			# Контакт привязан к чату, а не к conversation_id из ответа API
+			amocrm_chat_id = target_conversation_id
+			self._logger.debug("Используем ID созданного чата для поиска контакта: %s", amocrm_chat_id)
 
 			# Запускаем фоновую задачу для получения contact_id через 10 секунд
-			self._logger.info("Запускаем фоновую задачу для поиска контакта через 10 секунд: amocrm_conversation_id=%s, phone=%s",
-							 amocrm_conversation_id, phone_number)
+			self._logger.info("Запускаем фоновую задачу для поиска контакта через 10 секунд: amocrm_chat_id=%s, phone=%s",
+							 amocrm_chat_id, phone_number)
 			asyncio.create_task(
 				self._delayed_contact_lookup(
-					amocrm_conversation_id,
+					amocrm_chat_id,
 					phone_number,
 					message.source_message_id
 				)
@@ -148,10 +149,10 @@ class RouteMessageFromEdnaUseCase:
 			# Ждем 10 секунд
 			await asyncio.sleep(10)
 
-			self._logger.info("Начинаем поиск контакта для conversation_id=%s через 10 секунд (phone=%s)",
+			self._logger.info("Начинаем поиск контакта для AmoCRM chat_id=%s через 10 секунд (phone=%s)",
 							 conversation_id, phone_number)
 
-			# Пытаемся получить контакт по conversation_id
+			# Пытаемся получить контакт по chat_id
 			contact_links = await self._amocrm_rest.get_contact_links(chats_id=[conversation_id])
 
 			if contact_links["_total_items"] > 0:
@@ -183,13 +184,13 @@ class RouteMessageFromEdnaUseCase:
 					await self._amocrm_rest.update_contact_phone(contact_id, phone_e164)
 					self._logger.info("Телефон контакта успешно обновлен в фоновой задаче")
 				else:
-					self._logger.warning("Contact_id не найден в ответе API для conversation_id=%s", conversation_id)
+					self._logger.warning("Contact_id не найден в ответе API для chat_id=%s", conversation_id)
 			else:
-				self._logger.warning("Контакт не найден для conversation_id=%s даже через 10 секунд", conversation_id)
+				self._logger.warning("Контакт не найден для chat_id=%s даже через 10 секунд", conversation_id)
 
 		except Exception as e:
 			self._logger.exception(
-				"Ошибка в фоновой задаче поиска контакта для conversation_id=%s: %s",
+				"Ошибка в фоновой задаче поиска контакта для chat_id=%s: %s",
 				conversation_id, str(e)
 			)
 

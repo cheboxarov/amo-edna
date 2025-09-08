@@ -34,7 +34,7 @@ class AmoCrmRestClient:
 
 	async def get_contact_id_by_chat_id(self, chat_id: str) -> Optional[int]:
 		try:
-			params = {"chat_id[]": chat_id}
+			params = {"chat_id": chat_id}
 			data = await self._get("/api/v4/contacts/chats", params=params)
 			embedded = data.get("_embedded", {})
 			chats = embedded.get("chats", [])

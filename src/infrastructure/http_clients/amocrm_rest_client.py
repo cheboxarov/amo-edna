@@ -95,9 +95,8 @@ class AmoCrmRestClient:
 		if contacts_id is not None:
 			params["contact_id"] = contacts_id
 		if chats_id is not None:
-			# Для массива chat_id используем формат chat_id[] как в документации AmoCRM
 			for chat_id in chats_id:
-				params["chat_id[]"] = chat_id
+				params["chat_id"] = chat_id
 		self._logger.info(f"chat_id: {chats_id}")
 		try:
 			self._logger.debug("Получение связей контактов: contacts_id=%s, chats_id=%s", contacts_id, chats_id)

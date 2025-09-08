@@ -1,5 +1,6 @@
 from __future__ import annotations
 import logging
+import asyncio
 from typing import Protocol, Optional
 from domain.models import Message, MessageLink, ConversationLink
 from domain.ports.message_provider import MessageProvider
@@ -98,61 +99,23 @@ class RouteMessageFromEdnaUseCase:
 
 		message.target_conversation_id = target_conversation_id
 
-		try:
-			self._logger.info("Попытка найти контакт для чата id=%s", target_conversation_id)
-			contact_links = await self._amocrm_rest.get_contact_links(chats_id=[target_conversation_id])
-			contact_id = None
-			if contact_links["_total_items"] > 0:
-				contact_link = contact_links["_embedded"]["chats"][0]
-				contact_id = contact_link.get("contact_id")
-				self._logger.info("Найден контакт id=%s для чата id=%s", contact_id, target_conversation_id)
-			else:
-				self._logger.debug("No contacts bound to chat_id=%s", target_conversation_id)
+		# Запускаем фоновую задачу для получения contact_id через 10 секунд
+		self._logger.info("Запускаем фоновую задачу для поиска контакта через 10 секунд: conversation_id=%s, phone=%s",
+						 target_conversation_id, phone_number)
+		asyncio.create_task(
+			self._delayed_contact_lookup(
+				target_conversation_id,
+				phone_number,
+				message.source_message_id
+			)
+		)
 
+		try:
 			# Отправляем сообщение в AmoCRM
 			result = await self._amocrm_provider.send_message(message)
 			self._logger.debug(
 				"Message sent to AmoCRM, result: %s", result.model_dump_json()
 			)
-
-			# Используем реальный conversation_id из ответа API для поиска контакта
-			actual_conversation_id = result.reference.conversation_id
-			self._logger.debug("Используем conversation_id из ответа API: %s", actual_conversation_id)
-
-			# Ищем контакт по реальному conversation_id
-			if not contact_id:
-				self._logger.info("Повторный поиск контакта по реальному conversation_id=%s", actual_conversation_id)
-				contact_links = await self._amocrm_rest.get_contact_links(chats_id=[actual_conversation_id])
-				if contact_links["_total_items"] > 0:
-					contact_link = contact_links["_embedded"]["chats"][0]
-					contact_id = contact_link.get("contact_id")
-					self._logger.info("Найден контакт id=%s для реального чата id=%s", contact_id, actual_conversation_id)
-
-			if contact_id:
-				# 2) Нормализовать номер (E.164 простая эвристика)
-				raw_phone = phone_number or ""
-				norm = raw_phone.strip().replace(" ", "").replace("-", "")
-				if norm.startswith("+"):
-					phone_e164 = norm
-				elif norm.startswith("8") and len(norm) == 11:
-					phone_e164 = "+7" + norm[1:]
-				elif norm.startswith("7") and len(norm) == 11:
-					phone_e164 = "+" + norm
-				else:
-					# Если начинается с 9 и длина 10 — считаем РФ
-					if len(norm) == 10 and norm.startswith("9"):
-						phone_e164 = "+7" + norm
-					else:
-						phone_e164 = "+" + norm if norm and not norm.startswith("+") else norm
-
-				self._logger.info("Нормализован номер телефона: '%s' -> '%s'", raw_phone, phone_e164)
-				# 3) Обновить телефон у контакта
-				await self._amocrm_rest.update_contact_phone(contact_id, phone_e164)
-			else:
-				self._logger.debug(
-					"Contact for chat_id=%s not found, skip phone update",
-					actual_conversation_id,
-				)
 
 			# Сохраняем связь ID сообщений
 			msg_link = MessageLink(
@@ -160,7 +123,7 @@ class RouteMessageFromEdnaUseCase:
 				source_message_id=message.source_message_id,
 				target_provider=result.reference.provider,
 				target_message_id=result.reference.message_id,
-				target_conversation_id=actual_conversation_id,
+				target_conversation_id=result.reference.conversation_id,
 			)
 			await self._msg_links.save_link(msg_link)
 			self._logger.debug("Saved message link: %s", msg_link.model_dump_json())
@@ -169,6 +132,58 @@ class RouteMessageFromEdnaUseCase:
 			self._logger.exception(
 				"Failed to send message to AmoCRM for Edna conversation_id=%s",
 				message.source_conversation_id,
+			)
+
+	async def _delayed_contact_lookup(self, conversation_id: str, phone_number: str, message_id: str) -> None:
+		"""Фоновая задача для получения contact_id через 10 секунд после отправки сообщения"""
+		try:
+			self._logger.info("Запущена фоновая задача поиска контакта для conversation_id=%s", conversation_id)
+
+			# Ждем 10 секунд
+			await asyncio.sleep(10)
+
+			self._logger.info("Начинаем поиск контакта для conversation_id=%s через 10 секунд", conversation_id)
+
+			# Пытаемся получить контакт по conversation_id
+			contact_links = await self._amocrm_rest.get_contact_links(chats_id=[conversation_id])
+
+			if contact_links["_total_items"] > 0:
+				contact_link = contact_links["_embedded"]["chats"][0]
+				contact_id = contact_link.get("contact_id")
+
+				if contact_id:
+					self._logger.info("Найден контакт id=%s для чата id=%s через фоновую задачу", contact_id, conversation_id)
+
+					# Нормализуем номер телефона
+					raw_phone = phone_number or ""
+					norm = raw_phone.strip().replace(" ", "").replace("-", "")
+					if norm.startswith("+"):
+						phone_e164 = norm
+					elif norm.startswith("8") and len(norm) == 11:
+						phone_e164 = "+7" + norm[1:]
+					elif norm.startswith("7") and len(norm) == 11:
+						phone_e164 = "+" + norm
+					else:
+						# Если начинается с 9 и длина 10 — считаем РФ
+						if len(norm) == 10 and norm.startswith("9"):
+							phone_e164 = "+7" + norm
+						else:
+							phone_e164 = "+" + norm if norm and not norm.startswith("+") else norm
+
+					self._logger.info("Нормализован номер телефона: '%s' -> '%s'", raw_phone, phone_e164)
+
+					# Обновляем телефон у контакта
+					await self._amocrm_rest.update_contact_phone(contact_id, phone_e164)
+					self._logger.info("Телефон контакта успешно обновлен в фоновой задаче")
+				else:
+					self._logger.warning("Contact_id не найден в ответе API для conversation_id=%s", conversation_id)
+			else:
+				self._logger.warning("Контакт не найден для conversation_id=%s даже через 10 секунд", conversation_id)
+
+		except Exception as e:
+			self._logger.exception(
+				"Ошибка в фоновой задаче поиска контакта для conversation_id=%s: %s",
+				conversation_id, str(e)
 			)
 
 

@@ -98,23 +98,28 @@ class RouteMessageFromEdnaUseCase:
 			)
 
 		message.target_conversation_id = target_conversation_id
-
-		# Запускаем фоновую задачу для получения contact_id через 10 секунд
-		self._logger.info("Запускаем фоновую задачу для поиска контакта через 10 секунд: conversation_id=%s, phone=%s",
-						 target_conversation_id, phone_number)
-		asyncio.create_task(
-			self._delayed_contact_lookup(
-				target_conversation_id,
-				phone_number,
-				message.source_message_id
-			)
-		)
+		self._logger.debug("Установлен target_conversation_id=%s для отправки сообщения", target_conversation_id)
 
 		try:
 			# Отправляем сообщение в AmoCRM
 			result = await self._amocrm_provider.send_message(message)
 			self._logger.debug(
 				"Message sent to AmoCRM, result: %s", result.model_dump_json()
+			)
+
+			# Используем conversation_id из ответа AmoCRM API для поиска контакта
+			amocrm_conversation_id = result.reference.conversation_id
+			self._logger.debug("Conversation_id из ответа AmoCRM: %s", amocrm_conversation_id)
+
+			# Запускаем фоновую задачу для получения contact_id через 10 секунд
+			self._logger.info("Запускаем фоновую задачу для поиска контакта через 10 секунд: amocrm_conversation_id=%s, phone=%s",
+							 amocrm_conversation_id, phone_number)
+			asyncio.create_task(
+				self._delayed_contact_lookup(
+					amocrm_conversation_id,
+					phone_number,
+					message.source_message_id
+				)
 			)
 
 			# Сохраняем связь ID сообщений
@@ -137,12 +142,14 @@ class RouteMessageFromEdnaUseCase:
 	async def _delayed_contact_lookup(self, conversation_id: str, phone_number: str, message_id: str) -> None:
 		"""Фоновая задача для получения contact_id через 10 секунд после отправки сообщения"""
 		try:
-			self._logger.info("Запущена фоновая задача поиска контакта для conversation_id=%s", conversation_id)
+			self._logger.info("Запущена фоновая задача поиска контакта для AmoCRM conversation_id=%s (phone=%s, message_id=%s)",
+							 conversation_id, phone_number, message_id)
 
 			# Ждем 10 секунд
 			await asyncio.sleep(10)
 
-			self._logger.info("Начинаем поиск контакта для conversation_id=%s через 10 секунд", conversation_id)
+			self._logger.info("Начинаем поиск контакта для conversation_id=%s через 10 секунд (phone=%s)",
+							 conversation_id, phone_number)
 
 			# Пытаемся получить контакт по conversation_id
 			contact_links = await self._amocrm_rest.get_contact_links(chats_id=[conversation_id])

@@ -8,6 +8,9 @@ from fastapi import FastAPI
 from presentation.routers.health import router as health_router
 from presentation.routers.webhooks import router as webhooks_router, container
 from presentation.middleware.logging import log_request_body_middleware
+from infrastructure.http_clients.source_client import AmoCrmSourceProvider
+from use_cases.source_manager import SourceManager
+from core.config import settings
 import uvicorn
 
 # Создаем директорию для логов
@@ -113,6 +116,20 @@ setup_error_reporting(error_logger)
 async def lifespan(app: FastAPI):
 	await container.amocrm_client.ensure_ready()
 	await container.edna_client.ensure_ready()
+
+	# Инициализация источника "TeMa Edna" при запуске приложения
+	if settings.amocrm.auto_create_sources:
+		try:
+			logger = logging.getLogger("startup")
+			logger.info("Инициализация источника 'TeMa Edna'...")
+			source = await container.source_manager.ensure_tema_edna_source_exists()
+			logger.info("Источник 'TeMa Edna' успешно инициализирован (ID: %s, external_id: %s)",
+					   source.id, source.external_id)
+		except Exception as e:
+			logger = logging.getLogger("startup")
+			logger.error("Ошибка при инициализации источника 'TeMa Edna': %s", str(e))
+			logger.warning("Приложение продолжит работу без источника, но функциональность может быть ограничена")
+
 	yield
 
 print(f"Логирование настроено. Логи сохраняются в директорию: {logs_dir.absolute()}")

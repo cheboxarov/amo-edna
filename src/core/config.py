@@ -1,3 +1,4 @@
+from typing import Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from dotenv import load_dotenv, find_dotenv
 
@@ -35,6 +36,12 @@ class AmoCrmSettings(BaseSettings):
 	# Настройки создания чатов
 	auto_create_chats: bool = True
 	default_chat_source_external_id: str = ""
+
+	# Настройки источников
+	auto_create_sources: bool = True
+	tema_edna_source_name: str = "TeMa Edna"
+	source_pipeline_id: Optional[int] = None  # AMOCRM_SOURCE_PIPELINE_ID - ID воронки для создания источников
+	source_external_id_prefix: str = "tema_edna"
 
 
 class Settings(BaseSettings):

@@ -17,4 +17,5 @@ from .message import (
 	ChatUser,
 	ChatCreationRequest,
 	ChatCreationResult,
+	Source,
 )

@@ -11,6 +11,7 @@ from domain.models import (
 from domain.ports.message_provider import MessageProvider
 from core.config import AmoCrmSettings
 from core.error_logger import get_error_reporter
+from .source_manager import SourceManager
 
 
 class ConversationLinkRepository(Protocol):
@@ -37,19 +38,20 @@ class CreateChatUseCase:
         amocrm_provider: MessageProvider,
         conv_links: ConversationLinkRepository,
         amocrm_settings: AmoCrmSettings,
+        source_manager: SourceManager,
         logger: Optional[logging.Logger] = None,
     ) -> None:
         self._amocrm_provider = amocrm_provider
         self._conv_links = conv_links
         self._amocrm_settings = amocrm_settings
+        self._source_manager = source_manager
         self._logger = logger or logging.getLogger(__name__)
 
     async def execute(
         self,
         edna_conversation_id: str,
         phone_number: str,
-        user_name: Optional[str] = None,
-        source_external_id: Optional[str] = None
+        user_name: Optional[str] = None
     ) -> ChatCreationResult:
         """
         Создает чат в AmoCRM для номера телефона из Edna.
@@ -119,10 +121,14 @@ class CreateChatUseCase:
             user=user
         )
 
-        # Добавляем источник чата
-        source_id = source_external_id or self._amocrm_settings.default_chat_source_external_id
-        if source_id:
-            request.source = ChatSource(external_id=source_id)
+        # Добавляем источник чата "TeMa Edna"
+        try:
+            tema_edna_source = await self._source_manager.ensure_tema_edna_source_exists()
+            request.source = ChatSource(external_id=tema_edna_source.external_id)
+            self._logger.debug("Используем источник 'TeMa Edna' с external_id: %s", tema_edna_source.external_id)
+        except Exception as e:
+            self._logger.warning("Не удалось получить источник 'TeMa Edna', создаем чат без источника: %s", str(e))
+            # Продолжаем без источника, если не удалось его получить
 
         # Создаем чат через AmoCRM провайдер
         # Примечание: нам нужно добавить метод create_chat в интерфейс MessageProvider

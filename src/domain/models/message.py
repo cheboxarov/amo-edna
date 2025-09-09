@@ -122,3 +122,17 @@ class ChatCreationResult(BaseModel):
 	id: str
 	user: ChatUser
 	conversation_id: str
+
+
+class Source(BaseModel):
+	"""Модель источника чатов в AmoCRM"""
+	id: Optional[int] = None
+	name: str
+	external_id: str
+	pipeline_id: Optional[int] = None
+	services: list[dict] = []
+	is_default: bool = False
+	origin_code: Optional[str] = None  # Тип источника (chat, etc.)
+	request_id: Optional[str] = None
+	created_at: Optional[datetime] = None
+	updated_at: Optional[datetime] = None

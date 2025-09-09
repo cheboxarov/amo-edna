@@ -17,6 +17,8 @@ from infrastructure.repositories.in_memory_links import (
 	InMemoryConversationLinkRepository,
 	InMemoryMessageLinkRepository,
 )
+from infrastructure.http_clients.source_client import AmoCrmSourceProvider
+from use_cases.source_manager import SourceManager
 from core.config import settings
 from core.error_logger import get_error_reporter
 
@@ -58,10 +60,20 @@ class Container:
 		self.edna_client = EdnaHttpClient(settings=settings.edna)
 		self.amocrm_client = AmoCrmHttpClient(settings=settings.amocrm)
 		self.amocrm_rest_client = AmoCrmRestClient(settings=settings.amocrm)
+
+		# Инициализация SourceManager для работы с источниками
+		self.source_provider = AmoCrmSourceProvider(settings=settings.amocrm)
+		self.source_manager = SourceManager(
+			source_provider=self.source_provider,
+			amocrm_settings=settings.amocrm,
+			logger=logger,
+		)
+
 		self.create_chat_uc = CreateChatUseCase(
 			amocrm_provider=self.amocrm_client,
 			conv_links=self.conv_link_repo,
 			amocrm_settings=settings.amocrm,
+			source_manager=self.source_manager,
 			logger=logger,
 		)
 		self.route_from_edna_uc = RouteMessageFromEdnaUseCase(

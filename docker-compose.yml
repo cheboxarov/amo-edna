@@ -13,6 +13,7 @@ services:
       - EDNA_MESSAGE_MATCHER_CALLBACK_URL=https://amo-edna.24tema.ru/webhooks/edna
       - EDNA_CASCADE_ID=4567
 
+      - AMOCRM_SOURCE_PIPELINE_ID=9601698
       - AMOCRM_AMOJO_BASE_URL=https://amojo.amocrm.ru
       - AMOCRM_CHANNEL_ID=09747b7f-c6d3-4ee3-bfc3-a0db8550c34d
       - AMOCRM_CHANNEL_SECRET=2c1249562257eb6b81a8427c7f2d2189f3d008de

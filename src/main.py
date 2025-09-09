@@ -125,6 +125,10 @@ async def lifespan(app: FastAPI):
 			source = await container.source_manager.ensure_tema_edna_source_exists()
 			logger.info("Источник 'TeMa Edna' успешно инициализирован (ID: %s, external_id: %s)",
 					   source.id, source.external_id)
+
+			# Сохраняем external_id источника в настройках для использования в сообщениях
+			settings.amocrm.default_chat_source_external_id = source.external_id
+			logger.info("External_id источника сохранен в настройках: %s", source.external_id)
 		except Exception as e:
 			logger = logging.getLogger("startup")
 			logger.error("Ошибка при инициализации источника 'TeMa Edna': %s", str(e))

@@ -29,6 +29,7 @@ from core.error_logger import get_error_reporter
 class AmoCrmHttpClient(MessageProvider, StatusNotifier):
 	def __init__(self, settings: AmoCrmSettings):
 		self._logger = logging.getLogger("amocrm.amojo")
+		self._settings = settings  # Сохраняем ссылку на объект настроек
 		self._amojo_base_url = settings.amojo_base_url.rstrip("/")
 		self._scope_id = settings.scope_id or ""
 		self._channel_id = settings.channel_id
@@ -121,8 +122,8 @@ class AmoCrmHttpClient(MessageProvider, StatusNotifier):
 			raise RuntimeError("Failed to obtain scope_id from amojo connect response")
 		self._logger.info("Obtained scope_id=%s", self._scope_id)
 
-	def _build_text_message_payload(self, conversation_id: str, text: str, msg_id: Optional[str], *, sender_id: str, sender_name: str | None) -> Dict[str, Any]:
-		return {
+	def _build_text_message_payload(self, conversation_id: str, text: str, msg_id: Optional[str], *, sender_id: str, sender_name: str | None, source_external_id: Optional[str] = None) -> Dict[str, Any]:
+		payload = {
 			"event_type": "new_message",
 			"payload": {
 				"timestamp": int(datetime.now(timezone.utc).timestamp()),
@@ -139,14 +140,22 @@ class AmoCrmHttpClient(MessageProvider, StatusNotifier):
 			},
 		}
 
-	def _build_media_message_payload(self, conversation_id: str, msg_id: Optional[str], media_type: MessageContentType, *, url: str, name: Optional[str], size: Optional[int], sender_id: str, sender_name: str | None) -> Dict[str, Any]:
+		# Добавляем источник, если он указан
+		if source_external_id:
+			payload["payload"]["source"] = {"external_id": source_external_id}
+			self._logger.debug("Добавлен источник в payload текстового сообщения: external_id=%s", source_external_id)
+
+		return payload
+
+	def _build_media_message_payload(self, conversation_id: str, msg_id: Optional[str], media_type: MessageContentType, *, url: str, name: Optional[str], size: Optional[int], sender_id: str, sender_name: str | None, source_external_id: Optional[str] = None) -> Dict[str, Any]:
 		amo_type = "picture" if media_type == MessageContentType.image else "file"
 		message_obj: Dict[str, Any] = {"type": amo_type, "media": url}
 		if name:
 			message_obj["file_name"] = name
 		if size is not None:
 			message_obj["file_size"] = size
-		return {
+
+		payload = {
 			"event_type": "new_message",
 			"payload": {
 				"timestamp": int(datetime.now(timezone.utc).timestamp()),
@@ -160,12 +169,24 @@ class AmoCrmHttpClient(MessageProvider, StatusNotifier):
 			},
 		}
 
+		# Добавляем источник, если он указан
+		if source_external_id:
+			payload["payload"]["source"] = {"external_id": source_external_id}
+			self._logger.debug("Добавлен источник в payload медиа-сообщения: external_id=%s", source_external_id)
+
+		return payload
+
 	async def send_message(self, message: Message) -> SentMessageResult:
 		await self._ensure_scope_id()
 		conversation_id = message.target_conversation_id or message.source_conversation_id or ""
 		if not conversation_id:
 			raise ValueError("conversation_id is required to send message to amoCRM")
 		path = f"/v2/origin/custom/{self._scope_id}"
+
+		# Получаем external_id источника из настроек
+		source_external_id = getattr(self._settings, 'default_chat_source_external_id', None)
+		if source_external_id:
+			self._logger.debug("Используем external_id источника для сообщения: %s", source_external_id)
 
 		if message.content_type == MessageContentType.text or message.attachment is None:
 			text = message.text or ""
@@ -175,6 +196,7 @@ class AmoCrmHttpClient(MessageProvider, StatusNotifier):
 				msg_id=message.source_message_id,
 				sender_id=message.sender.provider_user_id,
 				sender_name=message.sender.display_name,
+				source_external_id=source_external_id,
 			)
 		else:
 			att = message.attachment
@@ -187,6 +209,7 @@ class AmoCrmHttpClient(MessageProvider, StatusNotifier):
 				size=att.size_bytes,
 				sender_id=message.sender.provider_user_id,
 				sender_name=message.sender.display_name,
+				source_external_id=source_external_id,
 			)
 
 		data = await self._post(path, payload)

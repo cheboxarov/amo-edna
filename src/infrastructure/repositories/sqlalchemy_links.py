@@ -139,8 +139,7 @@ class SQLiteConversationLinkRepository(ConversationLinkRepository):
                 async with session.begin():
                     orm_obj = to_conversation_link_orm(link)
                     # Используем merge для upsert
-                    session.merge(orm_obj)
-                    await session.commit()
+                    await session.merge(orm_obj)
 
             self._logger.debug(
                 f"Сохранена связь: amocrm_chat_id={link.amocrm_chat_id} -> edna_conversation_id={link.edna_conversation_id}"
@@ -172,7 +171,6 @@ class SQLiteConversationLinkRepository(ConversationLinkRepository):
                         .values(phone=phone_number)
                     )
                     await session.execute(stmt)
-                    await session.commit()
 
             self._logger.debug(f"Сохранен телефон {phone_number} для чата {amocrm_chat_id}")
         except Exception as e:
@@ -238,8 +236,7 @@ class SQLiteMessageLinkRepository(MessageLinkRepository):
                 async with session.begin():
                     orm_obj = to_message_link_orm(link)
                     # Используем merge для upsert
-                    session.merge(orm_obj)
-                    await session.commit()
+                    await session.merge(orm_obj)
 
             self._logger.debug(
                 f"Сохранена связь сообщений: source_id={link.source_message_id} -> target_id={link.target_message_id}"

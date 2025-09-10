@@ -8,3 +8,4 @@ __pycache__
 .cursor/mcp.json
 .todo2/
 logs/
+src/data/

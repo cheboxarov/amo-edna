@@ -44,9 +44,16 @@ class AmoCrmSettings(BaseSettings):
 	source_external_id_prefix: str = "tema_edna"
 
 
+class DatabaseSettings(BaseSettings):
+	model_config = SettingsConfigDict(env_prefix="APP_")
+	url: str = "sqlite+aiosqlite:///data/app.db"
+	use_sqlalchemy_repos: bool = True
+
+
 class Settings(BaseSettings):
 	edna: EdnaSettings = EdnaSettings()
 	amocrm: AmoCrmSettings = AmoCrmSettings()
+	database: DatabaseSettings = DatabaseSettings()
 
 
 settings = Settings()

@@ -9,6 +9,7 @@ from presentation.routers.health import router as health_router
 from presentation.routers.webhooks import router as webhooks_router, container
 from presentation.middleware.logging import log_request_body_middleware
 from infrastructure.http_clients.source_client import AmoCrmSourceProvider
+from infrastructure.db.engine import create_database_engine, init_db
 from use_cases.source_manager import SourceManager
 from core.config import settings
 import uvicorn
@@ -114,6 +115,19 @@ setup_error_reporting(error_logger)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+	# Инициализация базы данных, если используется SQLAlchemy
+	if settings.database.use_sqlalchemy_repos:
+		try:
+			logger = logging.getLogger("startup")
+			logger.info("Инициализация базы данных...")
+			engine = create_database_engine(settings.database.url)
+			await init_db(engine)
+			logger.info("База данных успешно инициализирована")
+		except Exception as e:
+			logger = logging.getLogger("startup")
+			logger.error("Ошибка при инициализации базы данных: %s", str(e))
+			logger.warning("Приложение продолжит работу с InMemory репозиториями")
+
 	await container.amocrm_client.ensure_ready()
 	await container.edna_client.ensure_ready()
 

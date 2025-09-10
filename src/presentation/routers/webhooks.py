@@ -17,7 +17,12 @@ from infrastructure.repositories.in_memory_links import (
 	InMemoryConversationLinkRepository,
 	InMemoryMessageLinkRepository,
 )
+from infrastructure.repositories.sqlalchemy_links import (
+	SQLiteConversationLinkRepository,
+	SQLiteMessageLinkRepository,
+)
 from infrastructure.http_clients.source_client import AmoCrmSourceProvider
+from infrastructure.db.engine import create_database_engine, create_session_factory
 from use_cases.source_manager import SourceManager
 from core.config import settings
 from core.error_logger import get_error_reporter
@@ -55,8 +60,19 @@ class Container:
 		logger = logging.getLogger("use_cases")
 		logger.setLevel(logging.INFO)
 
-		self.conv_link_repo = InMemoryConversationLinkRepository()
-		self.msg_link_repo = InMemoryMessageLinkRepository()
+		# Выбор репозиториев на основе настроек
+		if settings.database.use_sqlalchemy_repos:
+			logger.info("Используем SQLAlchemy репозитории")
+			# Создаем движок и фабрику сессий
+			engine = create_database_engine(settings.database.url)
+			session_factory = create_session_factory(engine)
+
+			self.conv_link_repo = SQLiteConversationLinkRepository(session_factory)
+			self.msg_link_repo = SQLiteMessageLinkRepository(session_factory)
+		else:
+			logger.info("Используем InMemory репозитории")
+			self.conv_link_repo = InMemoryConversationLinkRepository()
+			self.msg_link_repo = InMemoryMessageLinkRepository()
 		self.edna_client = EdnaHttpClient(settings=settings.edna)
 		self.amocrm_client = AmoCrmHttpClient(settings=settings.amocrm)
 		self.amocrm_rest_client = AmoCrmRestClient(settings=settings.amocrm)

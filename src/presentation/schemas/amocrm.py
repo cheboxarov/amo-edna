@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import Optional, List
 from pydantic import BaseModel, Field
+from domain.models import ChatSource
 
 
 class AmoMessage(BaseModel):
@@ -38,6 +39,7 @@ class AmoIncomingMessage(BaseModel):
 	timestamp: int
 	msec_timestamp: int
 	message: AmoMessage
+	source: Optional[ChatSource] = None
 
 
 class AmoIncomingWebhook(BaseModel):

@@ -218,6 +218,15 @@ class RouteMessageFromAmoCrmUseCase:
 			payload.account_id, payload.time, amocrm_message_id
 		)
 
+		# Логируем информацию об источнике, если она присутствует
+		if payload.message.source:
+			self._logger.debug(
+				"Источник сообщения из AmoCRM: external_id=%s",
+				payload.message.source.external_id
+			)
+		else:
+			self._logger.debug("Источник сообщения из AmoCRM не указан")
+
 		try:
 			message = amocrm_to_domain(payload)
 			self._logger.debug(

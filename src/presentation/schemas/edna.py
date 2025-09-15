@@ -23,6 +23,7 @@ class EdnaStatusUpdate(BaseModel):
     status: str
     statusAt: datetime
     paymentData: EdnaPaymentData
+    error: Optional[str] = None
 
 
 # New models for incoming messages based on the provided log

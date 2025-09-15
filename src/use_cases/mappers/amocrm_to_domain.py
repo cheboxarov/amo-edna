@@ -16,9 +16,10 @@ def amocrm_to_domain(payload: AmoIncomingWebhook) -> Message:
 	content_type = MessageContentType.text
 	attachment = None
 
-	if payload.message.message.type == "file":
+	amo_type = (payload.message.message.type or "").lower()
+	if amo_type in ("file", "document"):
 		content_type = MessageContentType.file
-	elif payload.message.message.type == "image":
+	elif amo_type in ("image", "picture"):
 		content_type = MessageContentType.image
 	else:
 		content_type = MessageContentType.text

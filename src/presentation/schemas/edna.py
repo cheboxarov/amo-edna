@@ -22,7 +22,7 @@ class EdnaStatusUpdate(BaseModel):
     subjectId: int
     status: str
     statusAt: datetime
-    paymentData: EdnaPaymentData
+    paymentData: Optional[EdnaPaymentData] = None
     error: Optional[str] = None
 
 

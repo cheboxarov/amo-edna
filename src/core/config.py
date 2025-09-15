@@ -49,10 +49,16 @@ class DatabaseSettings(BaseSettings):
 	url: str = "sqlite+aiosqlite:///data/app.db"
 	use_sqlalchemy_repos: bool = True
 
+class AppSettings(BaseSettings):
+	model_config = SettingsConfigDict(env_prefix="APP_")
+	public_base_url: str | None = None
+	enable_media_proxy: bool = True
+
 
 class Settings(BaseSettings):
 	edna: EdnaSettings = EdnaSettings()
 	amocrm: AmoCrmSettings = AmoCrmSettings()
+	app: AppSettings = AppSettings()
 	database: DatabaseSettings = DatabaseSettings()
 
 

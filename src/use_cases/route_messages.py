@@ -11,6 +11,7 @@ from presentation.schemas.edna import EdnaIncomingMessage
 from core.error_logger import get_error_reporter
 from .create_chat import CreateChatUseCase
 from infrastructure.http_clients.amocrm_rest_client import AmoCrmRestClient
+from core.config import settings
 
 
 class ConversationLinkRepository(Protocol):
@@ -271,6 +272,17 @@ class RouteMessageFromAmoCrmUseCase:
 				"Отправка сообщения в Edna: conversation_id=%s, sender=%s, text='%s'",
 				message.target_conversation_id, message.sender.display_name, message.text[:100] + "..." if message.text and len(message.text) > 100 else message.text
 			)
+
+			# Если включен прокси для медиа и есть вложение из Amo, переписываем URL на публичный прокси
+			if settings.app.enable_media_proxy and message.attachment and message.attachment.url:
+				try:
+					public_base = settings.app.public_base_url or ""
+					if public_base:
+						proxy_url = f"{public_base.rstrip('/')}/media/proxy?url={message.attachment.url}"
+						self._logger.debug("Переписываем media URL на прокси: %s -> %s", message.attachment.url, proxy_url)
+						message.attachment.url = proxy_url
+				except Exception:
+					pass
 
 			result = await self._edna_provider.send_message(message)
 

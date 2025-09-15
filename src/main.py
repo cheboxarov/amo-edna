@@ -158,6 +158,8 @@ app.middleware("http")(log_request_body_middleware)
 
 app.include_router(health_router)
 app.include_router(webhooks_router)
+from presentation.routers.media_proxy import router as media_router
+app.include_router(media_router)
 
 if __name__ == "__main__":
 	# Исключаем директорию logs из отслеживания изменений для предотвращения бесконечных перезапусков

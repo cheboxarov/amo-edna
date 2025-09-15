@@ -147,13 +147,16 @@ class AmoCrmHttpClient(MessageProvider, StatusNotifier):
 
 		return payload
 
-	def _build_media_message_payload(self, conversation_id: str, msg_id: Optional[str], media_type: MessageContentType, *, url: str, name: Optional[str], size: Optional[int], sender_id: str, sender_name: str | None, source_external_id: Optional[str] = None) -> Dict[str, Any]:
+	def _build_media_message_payload(self, conversation_id: str, msg_id: Optional[str], media_type: MessageContentType, *, url: str, name: Optional[str], size: Optional[int], sender_id: str, sender_name: str | None, source_external_id: Optional[str] = None, caption_text: Optional[str] = None) -> Dict[str, Any]:
 		amo_type = "picture" if media_type == MessageContentType.image else "file"
 		message_obj: Dict[str, Any] = {"type": amo_type, "media": url}
 		if name:
 			message_obj["file_name"] = name
 		if size is not None:
 			message_obj["file_size"] = size
+		# Для картинок пробрасываем подпись как text, если есть
+		if amo_type == "picture" and caption_text:
+			message_obj["text"] = caption_text
 
 		payload = {
 			"event_type": "new_message",
@@ -210,6 +213,7 @@ class AmoCrmHttpClient(MessageProvider, StatusNotifier):
 				sender_id=message.sender.provider_user_id,
 				sender_name=message.sender.display_name,
 				source_external_id=source_external_id,
+				caption_text=message.text,
 			)
 
 		data = await self._post(path, payload)

@@ -19,12 +19,21 @@ def edna_message_to_domain(payload: EdnaIncomingMessage) -> Message:
 	attachment = None
 	message_content = payload.messageContent
 
+	# Определяем тип контента сначала по явному типу из Edna
+	content_type_upper = (message_content.type or "").upper()
+
 	if message_content.attachment:
-		content_type = (
-			MessageContentType.image
-			if "image" in (message_content.attachment.mimeType or "")
-			else MessageContentType.file
-		)
+		if content_type_upper == "IMAGE":
+			content_type = MessageContentType.image
+		elif content_type_upper in ("DOCUMENT", "FILE"):
+			content_type = MessageContentType.file
+		else:
+			# Fallback по mimeType, если тип не задан явным образом
+			content_type = (
+				MessageContentType.image
+				if "image" in (message_content.attachment.mimeType or "")
+				else MessageContentType.file
+			)
 		attachment = Attachment(
 			url=message_content.attachment.url,
 			mime_type=message_content.attachment.mimeType,
@@ -44,11 +53,14 @@ def edna_message_to_domain(payload: EdnaIncomingMessage) -> Message:
 		role=ParticipantRole.agent,
 	)
 
+	# Текст: используем text, иначе caption (например, подпись к изображению)
+	text_value = message_content.text or message_content.caption
+
 	return Message(
 		id=str(uuid4()),
 		direction=MessageDirection.inbound,  # Входящее от клиента в amoCRM
 		content_type=content_type,
-		text=message_content.text,
+		text=text_value,
 		attachment=attachment,
 		source_provider=ProviderName.edna,
 		source_conversation_id=payload.subject,  # This seems to be the conversation identifier
